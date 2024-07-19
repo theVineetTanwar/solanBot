@@ -7,12 +7,14 @@ from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from solders.keypair import Keypair
+from solders.pubkey import Pubkey
 
-from pydantic import BaseModel, Field
+import base64
+from pydantic import BaseModel, Field, field_validator # v2 needed
 from bson import ObjectId
-from typing import Optional
+from typing import Optional, List
 from pymongo import MongoClient
-from userModel import UserModel
+# from userModel import UserModel
 
 
 load_dotenv()
@@ -52,8 +54,48 @@ submenu_keyboard = [
 ]
 
 
+# get all wallets of a user
 
-def insert_user(user_data: UserModel):
+
+class UserModel(BaseModel):
+    userId: int = Field(..., unique=True)
+    privateKey: str
+    publicKey: str
+
+    @field_validator('privateKey', 'publicKey')
+    def check_base64(cls, v):
+        try:
+            base64.b64decode(v)
+            return v
+        except Exception as e:
+            raise ValueError("Invalid base64 encoded key")
+
+    class Config:
+        populate_by_name = True
+        json_encoders = {ObjectId: str}
+        json_schema_extra = {
+            "example": {
+                "userId": 4372293,
+                "privateKey": base64.b64encode(b'some_private_key').decode('utf-8'),
+                "publicKey": base64.b64encode(b'some_public_key').decode('utf-8')
+            }
+        }
+        
+
+
+def encode_key(key: bytes) -> str:
+    return base64.b64encode(key).decode('utf-8')
+
+def decode_key(encoded_key: str) -> bytes:
+    return base64.b64decode(encoded_key)
+
+def pubkey_to_bytes(pubkey: Pubkey) -> bytes:
+    return bytes(pubkey)
+
+def keypair_to_bytes(keypair: Keypair) -> bytes:
+    return keypair.secret()
+
+async def insert_user(user_data: UserModel):
     try:
         # convert the Pydantic model to a dictionary
         wallet_dict = user_data.dict(by_alias=True)
@@ -62,10 +104,13 @@ def insert_user(user_data: UserModel):
         print(f'User inserted with id: {result.inserted_id}')
     except Exception as e:
         print(f'Error inserting user: {e}')
+        
 
-def get_user_by_userId(userId: str) -> Optional[UserModel]:
+async def get_user_by_userId(userId: int) -> Optional[UserModel]:
+    print('uid',userId)
     try:
         wallet_dict = wallet_collection.find_one({"userId": userId})
+        print('walleteddddd',wallet_dict)
         if wallet_dict:
             return UserModel(**wallet_dict)
     except Exception as e:
@@ -82,7 +127,7 @@ def get_users() -> list[UserModel]:
         print(f'Error getting all users: {e}')
         return []
 
-def update_user(userId: str, update_data: dict):
+def update_user(userId: int, update_data: dict):
     try:
         result = wallet_collection.update_one({"userId": userId}, {"$set": update_data})
         if result.modified_count:
@@ -102,10 +147,6 @@ def delete_user(userId: str):
     except Exception as e:
         print(f'Error deleting user: {e}')
 
-# Create a new user
-    # new_user = UserModel(userId="user123", privateKey="private_key_123", publicKey="public_key_12333333")
-    # # Insert the new user
-    # insert_user(new_user)
 
 
 # Get all users
@@ -120,6 +161,8 @@ async def main_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    print('-update',update)
+    print('-query',query)
     chat_id = query.from_user.id
     await query.answer()
     callback_data = query.data
@@ -137,11 +180,22 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
         main_reply_markup = InlineKeyboardMarkup(main_keyboard)
         await query.edit_message_text(text="Hello! This is Crypto Bot, how can I help.", reply_markup=main_reply_markup)
     elif callback_data == 'generate_wallet':
-        print('generating wallet')
-        keypair = Keypair()
-        public_key = keypair.pubkey()
-        private_key = keypair.secret()
-        await send_message(chat_id, f"**Private Key**: [{private_key}](tg://copy?text={private_key})\n **Public Key**: [{public_key}](tg://copy?text={public_key})", context)
+        print('generating wallet with chat id-',chat_id)
+        print('type of chatid',type(chat_id))
+
+        retrieved_user = await get_user_by_userId(int(chat_id))
+        print('retrieved_user',retrieved_user)
+        if (retrieved_user == None):
+            keypair = Keypair()
+            private_key = encode_key(keypair_to_bytes(keypair))
+            public_key = encode_key(pubkey_to_bytes(keypair.pubkey()))
+            
+            new_user = UserModel(userId=chat_id, privateKey=private_key, publicKey=public_key)
+            await insert_user(new_user)
+            await send_message(chat_id, f"🎉 Wallet generated\n*Public Key*: _`{public_key}`_ \\(Tap to copy\\)", context)
+        else:
+            print('wallet already exist')
+            await send_message(chat_id, f"A wallet is already created with your account\\.\nCurrently we support only one wallet per user\nYour *Public Key*: _`{retrieved_user.publicKey}`_ \\(Tap to copy\\)", context)
 
 
 
@@ -167,7 +221,7 @@ def get_token_info(token_address):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("update", update)
     text = update.message.text
-    response = f"You said: {text}"
+    response = f"{text}"
     chat_type = update.message.chat.type
     chat_id = update.message.chat.id
 
@@ -207,7 +261,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def send_message(chat_id, message, context: ContextTypes.DEFAULT_TYPE):
     print('-sendmsg chatId', chat_id)
     print('-sendmsg text', message)
-    await context.bot.send_message(chat_id=chat_id, text=message)
+    await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='MarkdownV2')
 
 
 async def send_token_info_and_swap_menu(chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE):
