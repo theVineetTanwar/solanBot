@@ -336,7 +336,7 @@ async def send_token_info_and_swap_menu(chat_id, token_info, token_address, cont
 if __name__ == '__main__':
     print('started bot')
 
-    app = Application.builder().token("7247128271:AAGpw5rPlSciuViJSmrxesDbrtIVugiA-rA").build()
+    app = Application.builder().token("6660254760:AAHDbf60lMLVnzOV5Sl0FWQDA5zx1rUHT7Q").build()
 
     app.add_handler(CommandHandler('main', main_command))
     app.add_handler(CallbackQueryHandler(button_click_callback))
