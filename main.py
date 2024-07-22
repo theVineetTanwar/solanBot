@@ -3,7 +3,7 @@ import os
 import requests
 import re
 from typing import Final
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from solders.keypair import Keypair
@@ -17,10 +17,10 @@ from pymongo import MongoClient
 # from userModel import UserModel
 
 
-load_dotenv()
+# load_dotenv()
 
-dbURI = os.getenv("dbURI")
-client = MongoClient(dbURI)
+# dbURI = os.getenv("dbURI")
+client = MongoClient("mongodb+srv://vineet:Zf2eJGOfvbHVwPuL@testcluster.yqndany.mongodb.net/?retryWrites=true&w=majority&appName=testCluster")
 db = client.telegram 
 wallet_collection = db.wallet 
 # print('wallet_collection',wallet_collection)
@@ -151,6 +151,7 @@ def delete_user(userId: str):
 
 # Get all users
 all_users = get_users()
+# all_users22 = get_user_by_userId(915114249)
 for user in all_users:
     print(user)
 
@@ -335,7 +336,7 @@ async def send_token_info_and_swap_menu(chat_id, token_info, token_address, cont
 if __name__ == '__main__':
     print('started bot')
 
-    app = Application.builder().token(TOKEN).build()
+    app = Application.builder().token("7247128271:AAGpw5rPlSciuViJSmrxesDbrtIVugiA-rA").build()
 
     app.add_handler(CommandHandler('main', main_command))
     app.add_handler(CallbackQueryHandler(button_click_callback))
