@@ -3,7 +3,7 @@ import os
 import requests
 import re
 from typing import Final
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from solders.keypair import Keypair
@@ -19,16 +19,16 @@ from pymongo import MongoClient
 
 # load_dotenv()
 
-# dbURI = os.getenv("dbURI")
-client = MongoClient("mongodb+srv://vineet:Zf2eJGOfvbHVwPuL@testcluster.yqndany.mongodb.net/?retryWrites=true&w=majority&appName=testCluster")
+dbURI = "mongodb+srv://vineet:Zf2eJGOfvbHVwPuL@testcluster.yqndany.mongodb.net/?retryWrites=true&w=majority&appName=testCluster" # os.getenv("dbURI")
+client = MongoClient(dbURI)
 db = client.telegram 
 wallet_collection = db.wallet 
 # print('wallet_collection',wallet_collection)
 
 
 
-TOKEN: Final = ''
-BOT_NAME: Final = ''
+TOKEN: Final = '7315336925:AAHu6_EX-pmpmxl8DmjO8IBHKwAFl_IhQlM'
+BOT_NAME: Final = '@crypto737263_bot'
 chain_id = "solana"  # Change to the appropriate chain ID
 
 main_keyboard = [
@@ -151,7 +151,6 @@ def delete_user(userId: str):
 
 # Get all users
 all_users = get_users()
-# all_users22 = get_user_by_userId(915114249)
 for user in all_users:
     print(user)
 
@@ -172,7 +171,7 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
         submenu_reply_markup = InlineKeyboardMarkup(submenu_keyboard)
         await query.edit_message_text(text="Manage Wallet", reply_markup=submenu_reply_markup)
     elif callback_data == 'buy_sell':
-        await query.edit_message_text(text="You clicked buy sell")
+        await query.edit_message_text(text="Enter client address to continue:")
     elif callback_data == 'positions':
         await query.edit_message_text(text="You clicked positions")
     elif callback_data == 'settings':
@@ -197,7 +196,12 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             print('wallet already exist')
             await send_message(chat_id, f"A wallet is already created with your account\\.\nCurrently we support only one wallet per user\nYour *Public Key*: _`{retrieved_user.publicKey}`_ \\(Tap to copy\\)", context)
-
+    elif callback_data == 'buy_0.1_sol':
+        await send_message(chat_id, f"buying 0.1 SOL", context)
+    elif callback_data == 'buy_x_sol':
+        await send_message(chat_id, f"Please enter the amount of SOL you want to swap:", context)    
+    elif callback_data == 'sell_x_percent':
+        await send_message(chat_id, f"Please enter the percentage you want to sell:", context)    
 
 
 def get_token_info(token_address):
@@ -217,6 +221,12 @@ def get_token_info(token_address):
         }
     else:
         return None
+
+
+def escape_dots(value):
+    value_str = str(value)
+    escaped_str = re.sub(r'\.', r'\\.', value_str)
+    return escaped_str
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -244,11 +254,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print('-amount', amount)
             amount = float(text)
             # pending_amount[chat_id] = amount
-            await send_message(chat_id, f"Amount set to {amount} SOL. Press 'Execute' to proceed.", context)
+            await send_message(chat_id, f"Amount set to {escape_dots(amount)} SOL.", context)
         elif re.match(r'^\d+(\.\d+)?%$', text):
             percentage = float(text.strip('%'))
             print('percentage-', percentage)
-            await send_message(chat_id, f"Percentage set to {percentage} SOL. Press 'Execute' to proceed.", context)
+            await send_message(chat_id, f"Percentage set to {escape_dots(percentage)}\\% SOL.", context)
             # asyncio.run(handle_sell(chat_id, percentage))
         else:
             print('private chat replyback')
@@ -259,84 +269,73 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(response)
 
 
-async def send_message(chat_id, message, context: ContextTypes.DEFAULT_TYPE):
+async def send_message(chat_id, message, context: ContextTypes.DEFAULT_TYPE, reply_keyboard=None):
     print('-sendmsg chatId', chat_id)
     print('-sendmsg text', message)
-    await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='MarkdownV2')
+    await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_keyboard, parse_mode='MarkdownV2')
 
 
 async def send_token_info_and_swap_menu(chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE):
-    print('send swap', chat_id, token_info, token_address)
+    # print('send swap', chat_id, token_info, token_address)
     # global buy_flag
-    # buy_button_text = "BUY ✅" if buy_flag else "BUY"
-    # sell_button_text = "SELL ✅" if not buy_flag else "SELL"
+    buy_button_text = "----BUY ✅----" # if buy_flag else "BUY"
+    sell_button_text = "----SELL 🔴----" # if not buy_flag else "SELL"
 
     # selected_option.setdefault(chat_id, {"buy": None, "sell": None})
 
-    # buy_0_1_sol_text = "0.1 SOL ✅" if selected_option[chat_id]["buy"] == "0.1_sol" else "0.1 SOL"
-    # buy_0_5_sol_text = "0.5 SOL ✅" if selected_option[chat_id]["buy"] == "0.5_sol" else "0.5 SOL"
-    # buy_1_sol_text = "1 SOL ✅" if selected_option[chat_id]["buy"] == "1_sol" else "1 SOL"
+    buy_0_1_sol_text = "0\\.1 SOL" # if selected_option[chat_id]["buy"] == "0.1_sol" else "0.1 SOL"
+    buy_0_5_sol_text = "0\\.5 SOL" # if selected_option[chat_id]["buy"] == "0.5_sol" else "0.5 SOL"
+    buy_1_sol_text = "1 SOL" # if selected_option[chat_id]["buy"] == "1_sol" else "1 SOL"
 
-    # sell_25_text = "Sell 25% ✅" if selected_option[chat_id]["sell"] == "25" else "Sell 25%"
-    # sell_50_text = "Sell 50% ✅" if selected_option[chat_id]["sell"] == "50" else "Sell 50%"
-    # sell_100_text = "Sell 100% ✅" if selected_option[chat_id]["sell"] == "100" else "Sell 100%"
+    sell_50_text = "Sell 50%" #if selected_option[chat_id]["sell"] == "50" else "Sell 50%"
+    sell_100_text = "Sell 100%" #if selected_option[chat_id]["sell"] == "100" else "Sell 100%"
+    sell_25_text = "Sell 25%" #if selected_option[chat_id]["sell"] == "25" else "Sell 25%"
 
     token_info_message = (
-        f"{token_info['symbol']} - {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address}\u200b)\n"
-        f"`{token_address}`\n\n"
-        f"**Price (USD):** {token_info['price_usd']}\n"
-        f"**Liquidity (USD):** {token_info['liquidity_usd']}\n"
-        f"**FDV:** {token_info['fdv']}\n\n"
-        f"Choose an action:"
+        f"{token_info['symbol']} \\- {token_info['name']}\n"
+        f"`{token_address}` _\\(Tap to copy\\)_ \n\n"
+        f"*Price \\(USD\\):* {escape_dots(token_info['price_usd'])}\n"
+        f"*Liquidity \\(USD\\):* {escape_dots(token_info['liquidity_usd'])}\n"
+        # f"*FDV:* {token_info['fdv']}\n\n"
+        f"[📈Visit dexscreener](https://dexscreener.com/{chain_id}/{token_address})\n"
+        f"__Choose an action__\\:"
     )
 
-    await send_message(chat_id, token_info_message, context)
+    reply_keyboard = InlineKeyboardMarkup([
+        [
+            {"text": buy_button_text, "callback_data": "toggle_buy_mode"}
+        ],
+        [
+            {"text": buy_0_1_sol_text, "callback_data": "buy_0.1_sol"},
+            {"text": buy_0_5_sol_text, "callback_data": "buy_0.5_sol"},
+        ],
+        [
+            {"text": buy_1_sol_text, "callback_data": "buy_1_sol"},
+            {"text": "Buy with X SOL", "callback_data": "buy_x_sol"}
+        ],
+        [
+            {"text": sell_button_text, "callback_data": "toggle_sell_mode"}
+        ],
+        [
+            {"text": sell_25_text, "callback_data": "sell_25_percent"},
+            {"text": sell_50_text, "callback_data": "sell_50_percent"},
+        ],
+        [
+            {"text": sell_100_text, "callback_data": "sell_100_percent"},
+            {"text": "Sell X\\%", "callback_data": "sell_x_percent"}
+        ],
+        # [
+        #     {"text": "Execute", "callback_data": "execute_trade"}
+        # ]
+    ])
 
-    # keyboard = {
-    #     "inline_keyboard": [
-    #         [
-    #             {"text": buy_button_text, "callback_data": "toggle_buy_mode"}
-    #         ],
-    #         [
-    #             {"text": buy_0_1_sol_text, "callback_data": "buy_0.1_sol"},
-    #             {"text": buy_0_5_sol_text, "callback_data": "buy_0.5_sol"},
-    #             {"text": buy_1_sol_text, "callback_data": "buy_1_sol"}
-    #         ],
-    #         [
-    #             {"text": "Buy with X SOL", "callback_data": "buy_x_sol"}
-    #         ],
-    #         [
-    #             {"text": sell_button_text, "callback_data": "toggle_sell_mode"}
-    #         ],
-    #         [
-    #             {"text": sell_25_text, "callback_data": "sell_25_percent"},
-    #             {"text": sell_50_text, "callback_data": "sell_50_percent"},
-    #             {"text": sell_100_text, "callback_data": "sell_100_percent"}
-    #         ],
-    #         [
-    #             {"text": "Sell X%", "callback_data": "sell_x_percent"}
-    #         ],
-    #         [
-    #             {"text": "Execute", "callback_data": "execute_trade"}
-    #         ]
-    #     ]
-    # }
-
-    # parameters = {
-    #     "chat_id": chat_id,
-    #     "text": token_info_message,
-    #     "reply_markup": json.dumps(keyboard),
-    #     "parse_mode": "Markdown"
-    # }
-
-    # resp = requests.post(send_message_url, data=parameters)
-    # print(resp.text)
+    await send_message(chat_id, token_info_message, context, reply_keyboard)
 
 
 if __name__ == '__main__':
     print('started bot')
 
-    app = Application.builder().token("6660254760:AAHDbf60lMLVnzOV5Sl0FWQDA5zx1rUHT7Q").build()
+    app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler('main', main_command))
     app.add_handler(CallbackQueryHandler(button_click_callback))
