@@ -9,7 +9,6 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 
-import base58
 import base64
 from pydantic import BaseModel, Field, field_validator # v2 needed
 from bson import ObjectId
