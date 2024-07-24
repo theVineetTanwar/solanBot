@@ -3,7 +3,7 @@ import os
 import requests
 import re
 from typing import Final
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from solders.keypair import Keypair
@@ -14,20 +14,22 @@ from pydantic import BaseModel, Field, field_validator # v2 needed
 from bson import ObjectId
 from typing import Optional, List
 from pymongo import MongoClient
-# from userModel import UserModel
+from transferSol import transfer_sol
 
 
-# load_dotenv()
+load_dotenv()
 
-# dbURI = os.getenv("dbURI")
-client = MongoClient("mongodb+srv://vineet:Zf2eJGOfvbHVwPuL@testcluster.yqndany.mongodb.net/?retryWrites=true&w=majority&appName=testCluster")
+dbURI = os.getenv("dbURI")
+TOKEN = os.getenv("TOKEN")
+client = MongoClient(dbURI)
+# client = MongoClient("mongodb+srv://vineet:Zf2eJGOfvbHVwPuL@testcluster.yqndany.mongodb.net/?retryWrites=true&w=majority&appName=testCluster")
 db = client.telegram 
 wallet_collection = db.wallet 
 # print('wallet_collection',wallet_collection)
 
 
 
-TOKEN: Final = ''
+# TOKEN: Final = ''
 BOT_NAME: Final = ''
 chain_id = "solana"  # Change to the appropriate chain ID
 
@@ -61,39 +63,8 @@ class UserModel(BaseModel):
     userId: int = Field(..., unique=True)
     privateKey: str
     publicKey: str
+    keypair: str
 
-    @field_validator('privateKey', 'publicKey')
-    def check_base64(cls, v):
-        try:
-            base64.b64decode(v)
-            return v
-        except Exception as e:
-            raise ValueError("Invalid base64 encoded key")
-
-    class Config:
-        populate_by_name = True
-        json_encoders = {ObjectId: str}
-        json_schema_extra = {
-            "example": {
-                "userId": 4372293,
-                "privateKey": base64.b64encode(b'some_private_key').decode('utf-8'),
-                "publicKey": base64.b64encode(b'some_public_key').decode('utf-8')
-            }
-        }
-        
-
-
-def encode_key(key: bytes) -> str:
-    return base64.b64encode(key).decode('utf-8')
-
-def decode_key(encoded_key: str) -> bytes:
-    return base64.b64decode(encoded_key)
-
-def pubkey_to_bytes(pubkey: Pubkey) -> bytes:
-    return bytes(pubkey)
-
-def keypair_to_bytes(keypair: Keypair) -> bytes:
-    return keypair.secret()
 
 async def insert_user(user_data: UserModel):
     try:
@@ -188,10 +159,11 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
         print('retrieved_user',retrieved_user)
         if (retrieved_user == None):
             keypair = Keypair()
-            private_key = encode_key(keypair_to_bytes(keypair))
-            public_key = encode_key(pubkey_to_bytes(keypair.pubkey()))
+            private_key = str(keypair.secret())
+            public_key = str(keypair.pubkey())
+            keypairStr = str(keypair)
             
-            new_user = UserModel(userId=chat_id, privateKey=private_key, publicKey=public_key)
+            new_user = UserModel(userId=chat_id, privateKey=private_key, publicKey=public_key, keypair = keypairStr)
             await insert_user(new_user)
             await send_message(chat_id, f"🎉 Wallet generated\n*Public Key*: _`{public_key}`_ \\(Tap to copy\\)", context)
         else:
@@ -336,7 +308,7 @@ async def send_token_info_and_swap_menu(chat_id, token_info, token_address, cont
 if __name__ == '__main__':
     print('started bot')
 
-    app = Application.builder().token("6660254760:AAHDbf60lMLVnzOV5Sl0FWQDA5zx1rUHT7Q").build()
+    app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler('main', main_command))
     app.add_handler(CallbackQueryHandler(button_click_callback))

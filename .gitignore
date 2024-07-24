@@ -4,3 +4,4 @@
 /Lib
 Lib
 .env
+/__pycache__
