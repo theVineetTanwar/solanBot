@@ -46,7 +46,10 @@ main_keyboard = [
 submenu_keyboard = [
     [
         InlineKeyboardButton("Generate Wallet", callback_data='generate_wallet'),
+    ],
+    [
         InlineKeyboardButton("Export Private Key", callback_data='export_private_key'),
+        InlineKeyboardButton("Check Balance", callback_data='get_balance'),
     ],
     [
         InlineKeyboardButton("Withdraw SOL", callback_data='withdraw_sol'),
@@ -63,7 +66,7 @@ class UserModel(BaseModel):
     keypair: str
 
     class Config:
-        populate_by_name = True
+        populate_by    _name = True
         json_encoders = {ObjectId: str}
         json_schema_extra = {
             "example": {
@@ -198,6 +201,33 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
         print('retrieved_user',retrieved_user)
         print('private key',retrieved_user.privateKey)
         await send_message(chat_id, f"*Private Key*: _`{retrieved_user.privateKey}`_ \\(Tap to copy\\)", context)
+    elif callback_data == 'get_balance':
+        retrieved_user = await get_user_by_userId(int(chat_id))
+        if(retrieved_user):
+            try:
+                wallet_address = retrieved_user.publicKey
+                url = f"https://api.shyft.to/sol/v1/wallet/balance?network=devnet&wallet={wallet_address}"
+                headers = {
+                    "x-api-key": SHYFT_API_KEY
+                }
+                response = requests.get(url, headers=headers)
+                response.raise_for_status()  # Check for HTTP errors
+                res = response.json()  # Parse the JSON response
+                print("---res",res)
+                
+                balance = res["result"]["balance"]
+                message = (
+                    f"*Wallet Balance*\n"
+                    f"`{wallet_address}` _\\(Tap to copy\\)_ \n"
+                    f"Balance: {balance} \\(\\${escape_dots(balance)}\\)"
+                )
+                await send_message(chat_id, message, context)
+            except requests.exceptions.HTTPError as http_err:
+                print(f"HTTP error occurred: {http_err}")
+            except Exception as err:
+                print(f"Other error occurred: {err}")
+        else:
+            await send_message(chat_id, f"You don\\'t have any wallet", context)
     elif callback_data == 'buy_0.1_sol':
         await send_message(chat_id, f"Buying 0\\.1 SOL", context)
     elif callback_data == 'buy_x_sol':
