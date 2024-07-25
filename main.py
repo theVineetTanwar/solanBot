@@ -21,6 +21,7 @@ load_dotenv()
 
 dbURI = os.getenv("dbURI")
 TOKEN = os.getenv("TOKEN")
+SHYFT_API_KEY = os.getenv("SHYFT_API_KEY")
 client = MongoClient(dbURI)
 db = client.telegram 
 wallet_collection = db.wallet 
