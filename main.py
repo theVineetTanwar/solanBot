@@ -238,23 +238,27 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 def get_token_info(token_address):
-    api_url = f"https://api.dexscreener.io/latest/dex/tokens/{token_address}"
-    response = requests.get(api_url)
-    response.raise_for_status()  # Check for HTTP errors
-    data = response.json()
-    print('getTokenData',data)
-
-    if data['pairs']:
-        token_info = data['pairs'][0]  # Get the first pair information
-        return {
-            "name": token_info['baseToken']['name'],
-            "symbol": token_info['baseToken']['symbol'],
-            "price_usd": token_info.get('priceUsd', 'N/A'),
-            "liquidity_usd": token_info.get('liquidity', {}).get('usd', 'N/A'),
-            "fdv": token_info.get('fdv', 'N/A')
-        }
-    else:
-        return None
+    try:
+        api_url = f"https://api.dexscreener.io/latest/dex/tokens/{token_address}"
+        response = requests.get(api_url)
+        response.raise_for_status()  # Check for HTTP errors
+        data = response.json()
+        print('getTokenData',data)
+        if data['pairs']:
+            token_info = data['pairs'][0]  # Get the first pair information
+            return {
+                "name": token_info['baseToken']['name'],
+                "symbol": token_info['baseToken']['symbol'],
+                "price_usd": token_info.get('priceUsd', 'N/A'),
+                "liquidity_usd": token_info.get('liquidity', {}).get('usd', 'N/A'),
+                "fdv": token_info.get('fdv', 'N/A')
+            }
+        else:
+            return None
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred: {http_err}")
+    except Exception as err:
+        print(f"Other error occurred: {err}")
 
 
 def escape_dots(value):
