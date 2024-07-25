@@ -278,6 +278,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print('token_addresses-', token_addresses)
         if token_addresses:
             token_address = token_addresses[0]
+            print('-address', token_address)
             token_info = get_token_info(token_address)
             print('tokenInfo', token_info)
             if token_info:
