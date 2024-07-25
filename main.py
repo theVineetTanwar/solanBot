@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, field_validator # v2 needed
 from bson import ObjectId
 from typing import Optional, List
 from pymongo import MongoClient
-from transferSol import transfer_sol
+# from transferSol import transfer_sol
 
 
 load_dotenv()
