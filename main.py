@@ -67,7 +67,7 @@ class UserModel(BaseModel):
     keypair: str
 
     class Config:
-        populate_by    _name = True
+        populate_by_name = True
         json_encoders = {ObjectId: str}
         json_schema_extra = {
             "example": {
