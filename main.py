@@ -240,7 +240,6 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
 def get_token_info(token_address):
     api_url = f"https://api.dexscreener.io/latest/dex/tokens/{token_address}"
     response = requests.get(api_url)
-    print('response',response)
     data = response.json()
     print('getTokenData',data)
 
