@@ -30,7 +30,6 @@ wallet_collection = db.wallet
 
 
 BOT_NAME: Final = '@crypto737263_bot'
-SHYFT_API_KEY = 'GlJ737ibT8z26T3f'
 chain_id = "solana"  # Change to the appropriate chain ID
 
 main_keyboard = [
