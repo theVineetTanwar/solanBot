@@ -1,7 +1,11 @@
 import asyncio
 import os
-import requests
 import re
+import requests
+import base64
+import json
+
+from requests.auth import HTTPDigestAuth
 from typing import Final
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -9,7 +13,6 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 
-import base64
 from pydantic import BaseModel, Field, field_validator # v2 needed
 from bson import ObjectId
 from typing import Optional, List
@@ -25,7 +28,6 @@ SHYFT_API_KEY = os.getenv("SHYFT_API_KEY")
 client = MongoClient(dbURI)
 db = client.telegram 
 wallet_collection = db.wallet 
-# print('wallet_collection',wallet_collection)
 
 
 
@@ -79,26 +81,12 @@ class UserModel(BaseModel):
         
 
 
-def encode_key(key: bytes) -> str:
-    return base64.b64encode(key).decode('utf-8')
-
-def decode_key(encoded_key: str) -> bytes:
-    return base64.b64decode(encoded_key)
-
-def pubkey_to_bytes(pubkey: Pubkey) -> bytes:
-    return bytes(pubkey)
-
-def keypair_to_bytes(keypair: Keypair) -> bytes:
-    return keypair.secret()
-
-
 
 
 async def insert_user(user_data: UserModel):
     try:
         # convert the Pydantic model to a dictionary
         wallet_dict = user_data.dict(by_alias=True)
-        print('wallet_dict',wallet_dict)
         result = wallet_collection.insert_one(wallet_dict)
         print(f'User inserted with id: {result.inserted_id}')
     except Exception as e:
@@ -106,7 +94,6 @@ async def insert_user(user_data: UserModel):
         
 
 async def get_user_by_userId(userId: int) -> Optional[UserModel]:
-    print('uid',userId)
     try:
         wallet_dict = wallet_collection.find_one({"userId": userId})
         print('walleteddddd',wallet_dict)
@@ -148,10 +135,6 @@ def delete_user(userId: str):
 
 
 
-# Get all users
-# all_users = get_users()
-# for user in all_users:
-#     print(user)
 
 async def main_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(main_keyboard)
@@ -205,20 +188,39 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
         retrieved_user = await get_user_by_userId(int(chat_id))
         if(retrieved_user):
             try:
-                wallet_address = retrieved_user.publicKey
-                url = f"https://api.shyft.to/sol/v1/wallet/balance?network=devnet&wallet={wallet_address}"
+                # wallet_address = retrieved_user.publicKey
+                # url = f"https://api.shyft.to/sol/v1/wallet/balance?network=devnet&wallet={wallet_address}"
+                # headers = {
+                #     "x-api-key": SHYFT_API_KEY
+                # }
+                # response = requests.get(url, headers=headers)
+                # response.raise_for_status()  # Check for HTTP errors
+                # res = response.json()  # Parse the JSON response
+                # print("---res",res)
+                # balance = res["result"]["balance"]
+                
+                url = "https://api.devnet.solana.com"
+                payload = json.dumps({
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "method": "getBalance",
+                  "params": [
+                    retrieved_user.publicKey
+                  ]
+                })
                 headers = {
-                    "x-api-key": SHYFT_API_KEY
+                  'Content-Type': 'application/json'
                 }
-                response = requests.get(url, headers=headers)
+            
+                response = requests.request("POST", url, headers=headers, data=payload)
                 response.raise_for_status()  # Check for HTTP errors
                 res = response.json()  # Parse the JSON response
                 print("---res",res)
+                balance = res["result"]["value"]
                 
-                balance = res["result"]["balance"]
                 message = (
                     f"*Wallet Balance*\n"
-                    f"`{wallet_address}` _\\(Tap to copy\\)_ \n"
+                    f"`{retrieved_user.publicKey}` _\\(Tap to copy\\)_ \n"
                     f"Balance: {balance} \\(\\${escape_dots(balance)}\\)"
                 )
                 await send_message(chat_id, message, context)
@@ -272,7 +274,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response = f"{text}"
     chat_type = update.message.chat.type
     chat_id = update.message.chat.id
-
     print('chat_type', chat_type)
 
     if chat_type == "private":
@@ -283,7 +284,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             token_address = token_addresses[0]
             print('-address', token_address)
             token_info = get_token_info(token_address)
-            print('tokenInfo', token_info)
             if token_info:
                 await send_token_info_and_swap_menu(chat_id, token_info, token_address, context)
             else:
@@ -301,7 +301,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             print('private chat replyback')
             await send_message(chat_id, response, context)
-            # await update.message.reply_text(response)
     else:
         print('-group replyback')
         await update.message.reply_text(response)
@@ -314,7 +313,6 @@ async def send_message(chat_id, message, context: ContextTypes.DEFAULT_TYPE, rep
 
 
 async def send_token_info_and_swap_menu(chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE):
-    # print('send swap', chat_id, token_info, token_address)
     # global buy_flag
     buy_button_text = "----BUY ✅----" # if buy_flag else "BUY"
     sell_button_text = "----SELL 🔴----" # if not buy_flag else "SELL"
@@ -369,35 +367,34 @@ async def send_token_info_and_swap_menu(chat_id, token_info, token_address, cont
     await send_message(chat_id, token_info_message, context, reply_keyboard)
 
 
-async def insert(chat_id):
-    retrieved_user = await get_user_by_userId(int(chat_id))
-    print('retrieved_user',retrieved_user)
+# async def insert(chat_id):
+#     retrieved_user = await get_user_by_userId(int(chat_id))
+#     print('retrieved_user',retrieved_user)
     
-    if(retrieved_user==None):
-        print('------creating new user')
-        keypair = Keypair()
-        private_key = str(keypair.secret())
-        public_key = str(keypair.pubkey())
-        keypairStr = str(keypair)
-        new_user = UserModel(userId=int(123456789), privateKey=private_key, publicKey=public_key, keypair=keypairStr)
-        await insert_user(new_user)
-    else:
-        print('------userrrr already exist')
+#     if(retrieved_user==None):
+#         print('------creating new user')
+#         keypair = Keypair()
+#         private_key = str(keypair.secret())
+#         public_key = str(keypair.pubkey())
+#         keypairStr = str(keypair)
+#         new_user = UserModel(userId=int(123456789), privateKey=private_key, publicKey=public_key, keypair=keypairStr)
+#         await insert_user(new_user)
+#     else:
+#         print('------user already exist')
     
-async def getAllUsers():    
-    all_users = get_users()
-    for user in all_users:
-        print(user)
+# async def getAllUsers():    
+#     all_users = get_users()
+#     for user in all_users:
+#         print(user)
 
-async def getUser(uid):    
-    # uid=894489141
-    retrieved_user = await get_user_by_userId(int(uid))
-    print('retrieved_user',retrieved_user)
+# async def getUser(uid):    
+#     retrieved_user = await get_user_by_userId(int(uid))
+#     print('retrieved_user',retrieved_user)
     
      
 def main():
     print('started bot')
-
+   
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler('main', main_command))
