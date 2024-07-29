@@ -61,11 +61,20 @@ submenu_keyboard = [
 
 
 
+
 class UserModel(BaseModel):
     userId: int = Field(..., unique=True)
     privateKey: str
     publicKey: str
     keypair: str
+    
+    @field_validator('privateKey')
+    def check_base64(cls, v):
+        try:
+            base64.b64decode(v)
+            return v
+        except Exception as e:
+            raise ValueError("Invalid base64 encoded key")
 
     class Config:
         populate_by_name = True
@@ -73,7 +82,7 @@ class UserModel(BaseModel):
         json_schema_extra = {
             "example": {
                 "userId": "3234323432",
-                "privateKey": "fgfgu47574u34433",
+                "privateKey": base64.b64encode(b'some_private_key').decode('utf-8'),
                 "publicKey": "ptgjndf985544",
                 "keypair": "sdfbsd8y8dsiu44",
             }
@@ -81,6 +90,11 @@ class UserModel(BaseModel):
         
 
 
+def encode_key(key: bytes) -> str:
+    return base64.b64encode(key).decode('utf-8')
+
+def decode_key(encoded_key: str) -> bytes:
+    return base64.b64decode(encoded_key)
 
 
 async def insert_user(user_data: UserModel):
@@ -169,7 +183,8 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
         print('retrieved_user',retrieved_user)
         if (retrieved_user == None):
             keypair = Keypair()
-            private_key = str(keypair.secret())
+            # private_key = str(keypair.secret())
+            private_key = encode_key(keypair.secret())
             public_key = str(keypair.pubkey())
             keypairStr = str(keypair)
             
@@ -181,24 +196,14 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
             await send_message(chat_id, f"A wallet is already created with your account\\.\nCurrently we support only one wallet per user\nYour *Public Key*: _`{retrieved_user.publicKey}`_ \\(Tap to copy\\)", context)
     elif callback_data == 'export_private_key':
         retrieved_user = await get_user_by_userId(int(chat_id))
+        pk = decode_key(str(retrieved_user.privateKey))
         print('retrieved_user',retrieved_user)
-        print('private key',retrieved_user.privateKey)
-        await send_message(chat_id, f"*Private Key*: _`{retrieved_user.privateKey}`_ \\(Tap to copy\\)", context)
+        print('private key',pk)
+        await send_message(chat_id, f"*Private Key*: _`{pk}`_ \\(Tap to copy\\)", context)
     elif callback_data == 'get_balance':
         retrieved_user = await get_user_by_userId(int(chat_id))
         if(retrieved_user):
-            try:
-                # wallet_address = retrieved_user.publicKey
-                # url = f"https://api.shyft.to/sol/v1/wallet/balance?network=devnet&wallet={wallet_address}"
-                # headers = {
-                #     "x-api-key": SHYFT_API_KEY
-                # }
-                # response = requests.get(url, headers=headers)
-                # response.raise_for_status()  # Check for HTTP errors
-                # res = response.json()  # Parse the JSON response
-                # print("---res",res)
-                # balance = res["result"]["balance"]
-                
+            try:  
                 url = "https://api.devnet.solana.com"
                 payload = json.dumps({
                   "jsonrpc": "2.0",
@@ -214,7 +219,7 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
             
                 response = requests.request("POST", url, headers=headers, data=payload)
                 response.raise_for_status()  # Check for HTTP errors
-                res = response.json()  # Parse the JSON response
+                res = response.json()
                 print("---res",res)
                 balance = res["result"]["value"]
                 
@@ -374,10 +379,10 @@ async def send_token_info_and_swap_menu(chat_id, token_info, token_address, cont
 #     if(retrieved_user==None):
 #         print('------creating new user')
 #         keypair = Keypair()
-#         private_key = str(keypair.secret())
+#         private_key = encode_key(keypair.secret())
 #         public_key = str(keypair.pubkey())
 #         keypairStr = str(keypair)
-#         new_user = UserModel(userId=int(123456789), privateKey=private_key, publicKey=public_key, keypair=keypairStr)
+#         new_user = UserModel(userId=int(chat_id), privateKey=private_key, publicKey=public_key, keypair=keypairStr)
 #         await insert_user(new_user)
 #     else:
 #         print('------user already exist')
@@ -385,13 +390,15 @@ async def send_token_info_and_swap_menu(chat_id, token_info, token_address, cont
 # async def getAllUsers():    
 #     all_users = get_users()
 #     for user in all_users:
-#         print(user)
+#         print('ecoded-pk',decode_key(str(user.privateKey)))
+#         print('-------------------------')
 
 # async def getUser(uid):    
 #     retrieved_user = await get_user_by_userId(int(uid))
 #     print('retrieved_user',retrieved_user)
-    
-     
+#     print('pk',decode_key(str(retrieved_user.privateKey)))
+
+
 def main():
     print('started bot')
    
@@ -401,8 +408,10 @@ def main():
     app.add_handler(CallbackQueryHandler(button_click_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # asyncio.run(insert(123456789))
-    # asyncio.run(getUser(123456789))
+
+
+    # asyncio.run(insert(9999999999))
+    # asyncio.run(getUser(9999999999))
     # asyncio.run(getAllUsers())
         
     print('polling---')
