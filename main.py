@@ -196,10 +196,13 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
             await send_message(chat_id, f"A wallet is already created with your account\\.\nCurrently we support only one wallet per user\nYour *Public Key*: _`{retrieved_user.publicKey}`_ \\(Tap to copy\\)", context)
     elif callback_data == 'export_private_key':
         retrieved_user = await get_user_by_userId(int(chat_id))
-        pk = decode_key(str(retrieved_user.privateKey))
-        print('retrieved_user',retrieved_user)
-        print('private key',pk)
-        await send_message(chat_id, f"*Private Key*: _`{pk}`_ \\(Tap to copy\\)", context)
+        if(retrieved_user):
+            # pk = decode_key(str(retrieved_user.privateKey))
+            print('retrieved_user',retrieved_user)
+            print('private key',retrieved_user.privateKey)
+            await send_message(chat_id, f"*Private Key*: _`{retrieved_user.privateKey}`_ \\(Tap to copy\\)", context)
+        else:
+            await send_message(chat_id, f"You don\\'t have any wallet", context)
     elif callback_data == 'get_balance':
         retrieved_user = await get_user_by_userId(int(chat_id))
         if(retrieved_user):
