@@ -1,38 +1,34 @@
 import asyncio
 from solders.pubkey import Pubkey
-from solana.rpc.async_api import AsyncClient
 from solana.rpc.api import Client
+from solders.hash import Hash
+from solders.keypair import Keypair
+from solders.system_program import TransferParams, transfer
+from solana.transaction import Transaction
+
+
 
 client =  Client("https://api.devnet.solana.com")
 solanaConnected = client.is_connected()
-print("solanaConnected>>>>>>>", solanaConnected)  # True
 
-# def main():
-    # async with AsyncClient("https://api.devnet.solana.com") as client:
-    # async with Client("https://api.devnet.solana.com") as client:
-    # async with Client("http://localhost:8899") as client:
-    # res = client.is_connected()
-    # print("res>>>>>>>", res)  # True
 
-    # pubkeyfromStr = Pubkey.from_string("H5FiG9MiGCWwMHRNc9q3nVHJS7navNdYMGgp67eQoc8K") 
-    # balance = client.get_balance(pubkeyfromStr)
-    # print("balance>>>>>>>>>>>>>>>>>>>", balance)
-    
-    # accountInfo = client.get_account_info(pubkeyfromStr)
-    # print("accountInfo>>>>>>>>>>>>>>>>>>>", accountInfo)
+def transactionFun(sender: Keypair, senderPubKey: Pubkey, receiver: Pubkey, amount):
 
-    
-    # singnatureForAdd = client.get_signatures_for_address(pubkeyfromStr)
-    # print("singnatureForAdd>>>>>>>>>>>>>>>>>>>", singnatureForAdd)
+    txn = Transaction().add(transfer(
+        TransferParams(
+            from_pubkey=senderPubKey, to_pubkey=receiver, lamports=amount
+        )
+    ))
+    txnRes = client.send_transaction(txn, sender).value # doctest: +SKIP like as 3L6v5yiXRi6kgUPvNqCD7GvnEa3d1qX79REdW1KqoeX4C4q6RHGJ2WTJtARs8ty6N5cSVGzVVTAhaSNM9MSahsqw
+    # return response as URL https://solscan.io/tx/txnRes?cluster=devnet
+    return txnRes
 
-    # getLatestBlockhash = client.get_latest_blockhash()
-    # print("getLatestBlockhash>>>>>>>>>>>>>>>>>>>", getLatestBlockhash)
-    
-
+def getLatestBlockHash():
+    return client.get_latest_blockhash()
 
 def getAccountInfo(pubkey):
-    balance = client.get_balance(pubkey)
-    return balance
+    return client.get_balance(pubkey)
 
-# pubkeyfromStr1 = Pubkey.from_string("H5FiG9MiGCWwMHRNc9q3nVHJS7navNdYMGgp67eQoc8K") 
+# transactionFun()
+# pubkeyfromStr1 = Pubkey.from_string("string") 
 # info = getAccountInfo(pubkeyfromStr1)
