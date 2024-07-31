@@ -4,6 +4,7 @@ import re
 import requests
 import base64
 import json
+import math  
 
 from requests.auth import HTTPDigestAuth
 from typing import Final
@@ -30,15 +31,17 @@ load_dotenv()
 
 dbURI = os.getenv("dbURI")
 TOKEN = os.getenv("TOKEN")
-SHYFT_API_KEY = os.getenv("SHYFT_API_KEY")
+# SHYFT_API_KEY = os.getenv("SHYFT_API_KEY")
 mongoClient = MongoClient(dbURI)
 db = mongoClient.telegram 
 wallet_collection = db.wallet 
 
-
 BOT_NAME: Final = '@crypto737263_bot'
 chain_id = "solana"  # Change to the appropriate chain ID
 
+receiver_pub_key = None  # Initialize as None to handle the state
+one_sol_in_lamports = 1000000000
+sol_address = "So11111111111111111111111111111111111111112"
 main_keyboard = [
     [
         {"text": "Buy/Sell", "callback_data": "buy_sell"},
@@ -135,9 +138,10 @@ def get_users() -> list[UserModel]:
         print(f'Error getting all users: {e}')
         return []
 
-def update_user(userId: int, update_data: dict):
+async def update_user(userId: int, update_data: dict):
     try:
-        result = wallet_collection.update_one({"userId": userId}, {"$set": update_data})
+        result = await wallet_collection.update_one({"userId": userId}, {"$set": update_data})
+        print('update_user result',result)
         if result.modified_count:
             print(f'User updated')
         else:
@@ -217,11 +221,21 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
             try:
                 response = helper.getBalance(Pubkey.from_string(retrieved_user.publicKey))
                 print('getBalance response',response)
-                balance = response.value
+                sol_bal = math.ceil((response.value / one_sol_in_lamports) * 100) / 100
+                      
+                response = requests.get('https://api.raydium.io/v2/main/price')
+                response.raise_for_status()  # Check for HTTP errors
+                data = response.json()
+                sol_price = data[sol_address]
+                usd_bal =  math.ceil((sol_bal * sol_price) * 100) / 100
+                print('sol_bal',sol_bal)
+                print('sol_price',sol_price)
+                print('usd_bal',usd_bal)
+                
                 message = (
                     f"*Wallet Balance*\n"
                     f"`{retrieved_user.publicKey}` _\\(Tap to copy\\)_ \n"
-                    f"Balance: {balance} \\(\\${escape_dots(balance)}\\)"
+                    f"Balance: {escape_dots(sol_bal)} SOL  \\(\\💲{escape_dots(usd_bal)}\\)"
                 )
                 await send_message(chat_id, message, context)
             except requests.exceptions.HTTPError as http_err:
@@ -270,32 +284,6 @@ def escape_dots(value):
     return escaped_str
 
 
-
-# def transactionFun(sender: Keypair, receiver: Pubkey, amount):
-#     print('sender',sender)
-#     print('receiver',receiver)
-#     print('amount',amount)
-#     try:
-#         txn = Transaction().add(transfer(
-#             TransferParams(
-#                 from_pubkey=sender.pubkey(), to_pubkey=receiver, lamports=int(amount)
-#             )
-#         ))
-#         txnRes = client.send_transaction(txn, sender).value # doctest: +SKIP like as 3L6v5yiXRi6kgUPvNqCD7GvnEa3d1qX79REdW1KqoeX4C4q6RHGJ2WTJtARs8ty6N5cSVGzVVTAhaSNM9MSahsqw
-#         # return response as URL https://solscan.io/tx/txnRes?cluster=devnet
-#         return txnRes
-#     except Exception as e:
-#         print(f'Error sending SOL: {e}')
-#     return None
-
-# def getLatestBlockHash():
-#     return client.get_latest_blockhash()
-
-# def getAccountInfo(pubkey):
-#     return client.get_balance(pubkey)
-
-
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # print("update", update)
     text = update.message.text
@@ -303,6 +291,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_type = update.message.chat.type
     chat_id = update.message.chat.id
     print('chat_type', chat_type)
+    
+    global receiver_pub_key
 
     if chat_type == "private":
         # Capture any word over 32 characters
@@ -316,7 +306,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if public_key_match:
             public_key = public_key_match[0]
             print('-public_key', public_key)
-            global receiver_pub_key
             receiver_pub_key = public_key
             await send_message(chat_id, f"Enter amount to proceed:", context)
         elif token_addresses:
@@ -327,15 +316,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await send_token_info_and_swap_menu(chat_id, token_info, token_address, context)
             else:
                 await send_message(chat_id, f"Token information not found for address: {token_address}", context)
-        elif re.match(r'^\d+(\.\d+)?$', text):
+        elif re.match(r'^\d*\.?\d+$', text):
             inputAmount = float(text)
             print('-inputAmount', inputAmount)
-            # 1 sol = 1000000000
-            amount = inputAmount * 1000000000
-            retrieved_user = await get_user_by_userId(int(chat_id))
-            if(retrieved_user):
+            print('-receiver_pub_key', receiver_pub_key)
+            amount = inputAmount * one_sol_in_lamports
+            if(receiver_pub_key is not None):
+                retrieved_user = await get_user_by_userId(int(chat_id))
                 # print('retrieved_user in buy',retrieved_user)
-                if(receiver_pub_key):
+                if(retrieved_user):
                     sender = Keypair.from_base58_string(retrieved_user.keypair)
                     receiver = Pubkey.from_string(receiver_pub_key)
                     txn = helper.transactionFun(sender, receiver, amount)
@@ -343,11 +332,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         print('txn:-',txn)
                         await send_message(chat_id, f"[SOL](https://solscan.io/tx/{txn}?cluster=devnet) sent successfully", context)
                     else:
-                        await send_message(chat_id, f"Something went wrong", context)
+                        await send_message(chat_id, f"🔴 Insufficient Balance", context)
                 else:
-                    await send_message(chat_id, f"Missing receiver\\'s public key", context)
+                    await send_message(chat_id, f"You don\'t have any wallet to send SOL", context)
             else:
-                await send_message(chat_id, f"You don\'t have any wallet to send SOL", context)
+                await send_message(chat_id, f"Enter receiver\\'s public key", context)
         elif re.match(r'^\d+(\.\d+)?%$', text):
             percentage = float(text.strip('%'))
             print('percentage-', percentage)
@@ -468,11 +457,11 @@ def main():
         print('solana Connected')
     else:
         print('failed solana Connecttion')
-
+        
     # asyncio.run(insert(9999999999))
     # asyncio.run(getUser(9999999999))
     # asyncio.run(getAllUsers())
-        
+    
     print('polling---')
     app.run_polling(poll_interval=3)
 
