@@ -1,3 +1,4 @@
+import asyncio
 from solders.pubkey import Pubkey
 from solders.hash import Hash
 from solders.keypair import Keypair
@@ -5,11 +6,9 @@ from solders.system_program import TransferParams, transfer
 from solders.signature import Signature
 from solana.rpc.api import Client
 from solana.transaction import Transaction
+import constant
 
 
-
-# client =  Client("https://api.devnet.solana.com")
-# solanaConnected = client.is_connected()
 
 
 class SolanaHelper():
@@ -18,7 +17,7 @@ class SolanaHelper():
     ):
         """Init API client."""
         super().__init__()
-        self.client =  Client("https://api.devnet.solana.com")
+        self.client =  Client(constant.clientURL)
         # self._provider = http.HTTPProvider(endpoint, timeout=timeout, extra_headers=extra_headers)
 
     
