@@ -9,8 +9,6 @@ from solana.transaction import Transaction
 import constant
 
 
-
-
 class SolanaHelper():
     def __init__(
         self,
@@ -63,8 +61,5 @@ class SolanaHelper():
 
 
 # pubkeyfromStr1 = Pubkey.from_string("str") 
-helper = SolanaHelper()
+# helper = SolanaHelper()
 # info = helper.getAccountInfo(pubkeyfromStr1)
-
-# xxx = helper.check_transaction_status('3L6v5yiXRi6kgUPvNqCD7GvnEa3d1qX79REdW1KqoeX4C4q6RHGJ2WTJtARs8ty6N5cSVGzVVTAhaSNM9MSahsqw')
-# print('xxx',xxx)
