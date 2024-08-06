@@ -147,7 +147,7 @@ class JupiterHelper():
             try:
                 transaction_data = await self.jupiter.swap(
                     input_mint=constant.input_mint,
-                    output_mint=output_mint,
+                    output_mint=str(output_mint),
                     amount=amount,
                     slippage_bps=slippage_bps,
                 )
@@ -158,13 +158,13 @@ class JupiterHelper():
                     await asyncio.sleep(1)  # Wait before retrying
                 else:
                     print("Max retries reached. Exiting.")
-                    return
+                    return ""
             except httpx.UnsupportedProtocol as e:
                 print(f"UnsupportedProtocol error: {e}")
-                return
+                return ""
             except Exception as e:
                 print(f"Unexpected error during swap: {e}")
-                return
+                return ""
 
         try:
             raw_transaction = VersionedTransaction.from_bytes(base64.b64decode(transaction_data))
@@ -174,9 +174,10 @@ class JupiterHelper():
             result = await self.async_client.send_raw_transaction(txn=bytes(signed_txn), opts=opts)
             transaction_id = json.loads(result.to_json())['result']
             print(f"Transaction sent: https://solscan.io/tx/{transaction_id}")
-            await self.check_transaction_status(transaction_id)
+            return transaction_id
         except Exception as e:
             print(f"Error sending transaction: {e}")
+            return ""
 
     async def check_transaction_status(self, transaction_id: str):
         max_checks = 5

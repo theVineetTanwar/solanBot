@@ -1,5 +1,5 @@
 
-# clientURL = "https://api.mainnet-beta.solana.com"
-clientURL = "https://api.devnet.solana.com"
+clientURL = "https://api.mainnet-beta.solana.com"
+# clientURL = "https://api.devnet.solana.com"
 
-input_token = "So11111111111111111111111111111111111111112"
+input_mint = "So11111111111111111111111111111111111111112"

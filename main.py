@@ -26,6 +26,8 @@ from pymongo import MongoClient
 
 # custom module
 from solanaHelper import SolanaHelper
+from jupiter import JupiterHelper
+from decimal import Decimal
 
 load_dotenv()
 
@@ -39,18 +41,24 @@ wallet_collection = db.wallet
 BOT_NAME: Final = '@crypto737263_bot'
 chain_id = "solana"  # Change to the appropriate chain ID
 
+last_call_back_type = ""
+
+
 receiver_pub_key = None  # Initialize as None to handle the state
 one_sol_in_lamports = 1000000000
 sol_address = "So11111111111111111111111111111111111111112"
 main_keyboard = [
     [
-        {"text": "Buy/Sell", "callback_data": "buy_sell"},
+        {"text": "Buy Tokens", "callback_data": "buy_token"},
         {"text": "Positions", "callback_data": "positions"}
     ],
     [
         {"text": "Wallet", "callback_data": "wallet"},
         {"text": "Settings", "callback_data": "settings"},
-    ]
+    ],
+    [
+        {"text": "Transfer Token", "callback_data": "transfer_token"},
+    ],
 ]
 
 submenu_keyboard = [
@@ -71,6 +79,18 @@ submenu_keyboard = [
 ]
 
 
+
+class ChatData(BaseModel):
+    def __init__(self, type, pubKey):
+        self.callbackType = type
+        self.pubKey = pubKey
+    
+    def setCallbackType(self, type):
+        self.callbackType = type
+
+    def setPubKey(self, pubKey):
+        self.pubKey = pubKey
+        
 
 
 class UserModel(BaseModel):
@@ -168,18 +188,25 @@ async def main_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global last_call_back_type
     query = update.callback_query
-    # print('-update',update)
-    # print('-query',query)
     chat_id = query.from_user.id
     await query.answer()
     callback_data = query.data
+    last_call_back_type = callback_data
+
+
 
     if callback_data == 'wallet':
         submenu_reply_markup = InlineKeyboardMarkup(submenu_keyboard)
+        context.chat_data["callbackType"] = callback_data
         await query.edit_message_text(text="Manage Wallet", reply_markup=submenu_reply_markup)
-    elif callback_data == 'buy_sell':
+    elif callback_data == 'buy_token':
+        context.chat_data["callbackType"] = callback_data
         await query.edit_message_text(text="Enter client address to continue:")
+    elif callback_data == 'transfer_token':
+        context.chat_data["callbackType"] = callback_data
+        await query.edit_message_text(text="Enter token address to continue:")
     elif callback_data == 'positions':
         await query.edit_message_text(text="You clicked positions")
     elif callback_data == 'settings':
@@ -220,12 +247,11 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
         if(retrieved_user):
             try:
                 response = helper.getBalance(Pubkey.from_string(retrieved_user.publicKey))
-                print('getBalance response',response)
                 sol_bal = math.ceil((response.value / one_sol_in_lamports) * 100) / 100
                       
-                response = requests.get('https://api.raydium.io/v2/main/price')
-                response.raise_for_status()  # Check for HTTP errors
-                data = response.json()
+                sol_price_response = requests.get('https://api.raydium.io/v2/main/price')
+                sol_price_response.raise_for_status()  # Check for HTTP errors
+                data = sol_price_response.json()
                 sol_price = data[sol_address]
                 usd_bal =  math.ceil((sol_bal * sol_price) * 100) / 100
                 print('sol_bal',sol_bal)
@@ -245,7 +271,7 @@ async def button_click_callback(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             await send_message(chat_id, f"You don\\'t have any wallet", context)
     elif callback_data == 'send_sol':
-        await send_message(chat_id, f"Enter receiver\\'s public key to send SOL to", context)    
+        await send_message(chat_id, f"Enter receiver\\'s public key to send SOL to", context, None, callback_data)    
     elif callback_data == 'buy_0.1_sol':
         await send_message(chat_id, f"Buying 0\\.1 SOL", context)
     elif callback_data == 'buy_x_sol':
@@ -285,12 +311,14 @@ def escape_dots(value):
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # print("update", update)
+    global last_call_back_type
     text = update.message.text
     response = f"{text}"
     chat_type = update.message.chat.type
     chat_id = update.message.chat.id
-    print('chat_type', chat_type)
+    tmpCallBackType = context.chat_data.get("callbackType", '') or ""
+    tmpPubkey = context.chat_data.get("pubKey", '') or ""
+    print('chat_type', chat_type, "tmpCallBackType>>>>>>>>>>>>",tmpCallBackType, "<<<<<<tmpPubkey>>>>>>>>>>", tmpPubkey)
     
     global receiver_pub_key
 
@@ -307,32 +335,72 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             public_key = public_key_match[0]
             print('-public_key', public_key)
             receiver_pub_key = public_key
-            await send_message(chat_id, f"Enter amount to proceed:", context)
-        elif token_addresses:
-            token_address = token_addresses[0]
-            print('-address', token_address)
-            token_info = get_token_info(token_address)
-            if token_info:
-                await send_token_info_and_swap_menu(chat_id, token_info, token_address, context)
+
+            if(tmpCallBackType == "buy_token" or tmpCallBackType == "transfer_token"):
+                await send_message(chat_id, f"Enter amount to proceed for token:" + public_key, context, None, tmpCallBackType, public_key)
             else:
-                await send_message(chat_id, f"Token information not found for address: {token_address}", context)
+                await send_message(chat_id, f"You have not selected transaction type for the specified pubkey:"+public_key, context, None, "", "")
+            
+
+
+
+
+
+
+            # await send_message(chat_id, f"Enter amount to proceed for token:" + public_key, context, None, tmpCallBackType, public_key)
+        
+        # The below code is commented as vineet(as of 1st Aug) didn't get what it does.
+        # elif token_addresses:
+        #     token_address = token_addresses[0]
+        #     print('-address', token_address)
+        #     token_info = get_token_info(token_address)
+        #     if token_info:
+        #         await send_token_info_and_swap_menu(chat_id, token_info, token_address, context)
+        #     else:
+        #         await send_message(chat_id, f"Token information not found for address: {token_address}", context)
         elif re.match(r'^\d*\.?\d+$', text):
             inputAmount = float(text)
-            print('-inputAmount', inputAmount)
-            print('-receiver_pub_key', receiver_pub_key)
-            amount = inputAmount * one_sol_in_lamports
+            # amount = inputAmount * one_sol_in_lamports
+            testAmount = 5000000000
+            # amount = '{:f}'.format(inputAmount * one_sol_in_lamports)
+            amount = int(inputAmount * one_sol_in_lamports)
+
+
+            if(not(tmpCallBackType == "buy_token" or tmpCallBackType == "transfer_token")):
+                await send_message(chat_id, f"You have not selected transaction type for the transaction" , context, None, tmpCallBackType, tmpPubkey)
+                return
+            
+            if(not(re.findall(r'\b[A-HJ-NP-Za-km-z1-9]{44}\b', tmpPubkey) )):
+                await send_message(chat_id, f"No public key has been setup for txn" + tmpPubkey, context, None, tmpCallBackType, tmpPubkey)
+                return
+
+
+
             if(receiver_pub_key is not None):
                 retrieved_user = await get_user_by_userId(int(chat_id))
                 # print('retrieved_user in buy',retrieved_user)
                 if(retrieved_user):
                     sender = Keypair.from_base58_string(retrieved_user.keypair)
                     receiver = Pubkey.from_string(receiver_pub_key)
-                    txn = helper.transactionFun(sender, receiver, amount)
-                    if(txn):
-                        print('txn:-',txn)
-                        await send_message(chat_id, f"[SOL](https://solscan.io/tx/{txn}?cluster=devnet) sent successfully", context)
-                    else:
-                        await send_message(chat_id, f"🔴 Insufficient Balance", context)
+                    if(tmpCallBackType == "transfer_token"):
+                        txn = helper.transactionFun(sender, receiver, amount)
+                        if(txn):
+                            print('txn:-',txn)
+                            await send_message(chat_id, f"[SOL](https://solscan.io/tx/{txn}?cluster=devnet) sent successfully", context)
+                        else:
+                            await send_message(chat_id, f"🔴 Insufficient Balance", context)
+                    elif(tmpCallBackType == "buy_token"):
+                        # need to work from here 
+
+                        tmpJupiterHel = jupiterHelper.initializeJup(sender)
+                        slippage = 100  # 1% slippage in basis points
+                        jup_txn_id = await jupiterHelper.execute_swap(receiver, amount, slippage, sender)
+                        if not jup_txn_id:
+                            await send_message(chat_id, f"There is some technical issue while buying the token", context)
+                        else:
+                            await send_message(chat_id, f"[SOL](https://solscan.io/tx/{jup_txn_id}) buy successfully", context)
+                        
+
                 else:
                     await send_message(chat_id, f"You don\'t have any wallet to send SOL", context)
             else:
@@ -350,9 +418,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(response)
 
 
-async def send_message(chat_id, message, context: ContextTypes.DEFAULT_TYPE, reply_keyboard=None):
-    print('-sendmsg chatId', chat_id)
+async def send_message(chat_id, message, context: ContextTypes.DEFAULT_TYPE, reply_keyboard=None, callbackType="", userFilledPubkey=""):
+    print('-sendmsg chatId', chat_id,)
     print('-sendmsg text', message)
+
+    context.chat_data["callbackType"] = callbackType
+    context.chat_data["pubKey"] = userFilledPubkey
+
     await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_keyboard, disable_web_page_preview=True, parse_mode='MarkdownV2')
 
 
@@ -440,7 +512,6 @@ async def send_token_info_and_swap_menu(chat_id, token_info, token_address, cont
 
 def main():
     print('started bot')
-   
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler('main', main_command))
@@ -449,6 +520,8 @@ def main():
     
     global helper
     helper = SolanaHelper()
+    global jupiterHelper
+    jupiterHelper = JupiterHelper()
     solanaConnected = helper.client.is_connected()
     # global client
     # client =  Client("https://api.devnet.solana.com")

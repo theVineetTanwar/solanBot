@@ -7,7 +7,11 @@ from solders.signature import Signature
 from solana.rpc.api import Client
 from solana.transaction import Transaction
 import constant
+from solana.rpc import types
+from spl.token.constants import TOKEN_PROGRAM_ID
 
+from solana.rpc.types import MemcmpOpts
+from typing import List, Union
 
 class SolanaHelper():
     def __init__(
@@ -17,6 +21,7 @@ class SolanaHelper():
         super().__init__()
         self.client =  Client(constant.clientURL)
         # self._provider = http.HTTPProvider(endpoint, timeout=timeout, extra_headers=extra_headers)
+        # print('self.client>>>>>>>>>>>>>', self.client)
 
     
     def transactionFun(self, sender: Keypair, receiver: Pubkey, amount):
@@ -48,6 +53,24 @@ class SolanaHelper():
             else:
                 print(f"Transaction status not found")
                 return None
+        except Exception as e:
+            print(f'Error getting txn status: {e}')
+        return None
+    
+    
+    def get_token_accounts_by_owner(self, pubKey):
+        # print('transaction_id',transaction_id)
+        try:
+
+
+            memcmp_opts = MemcmpOpts(offset=4, bytes="3Mc6vR")
+            filters: List[Union[int, MemcmpOpts]] = [17, memcmp_opts]
+
+            tmpOpts = types.TokenAccountOpts(program_id=TOKEN_PROGRAM_ID)
+            # print('tmpOpts>>>>>>>>>>>>>>>>>>', tmpOpts, "filters>>>>>>>>>>", filters)
+            response = self.client.get_token_accounts_by_owner_json_parsed(pubKey, tmpOpts)
+            # print('check txn status>>>>>',response)
+            return response
         except Exception as e:
             print(f'Error getting txn status: {e}')
         return None
