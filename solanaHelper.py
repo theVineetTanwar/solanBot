@@ -58,11 +58,9 @@ class SolanaHelper():
         return None
     
     
-    def get_token_accounts_by_owner(self, pubKey):
+    def getAccountInfo(self, pubKey):
         # print('transaction_id',transaction_id)
         try:
-
-
             memcmp_opts = MemcmpOpts(offset=4, bytes="3Mc6vR")
             filters: List[Union[int, MemcmpOpts]] = [17, memcmp_opts]
 
@@ -72,7 +70,7 @@ class SolanaHelper():
             # print('check txn status>>>>>',response)
             return response
         except Exception as e:
-            print(f'Error getting txn status: {e}')
+            print(f'Error getting account info: {e}')
         return None
 
     def getLatestBlockHash(self):

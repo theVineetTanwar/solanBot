@@ -11,6 +11,7 @@ from typing import Final
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram.constants import ParseMode
 
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
@@ -117,6 +118,20 @@ class Bot():
 
 
 
+    def getBalance(self, publicKey):
+        response = self.helper.getBalance(Pubkey.from_string(publicKey))
+        print('getBalance response >>>>>>>>',response)
+        sol_bal = math.ceil((response.value / self.one_sol_in_lamports) * 100) / 100
+            
+        sol_price_response = requests.get('https://api.raydium.io/v2/main/price')
+        sol_price_response.raise_for_status()  # Check for HTTP errors
+        data = sol_price_response.json()
+        sol_price = data[self.sol_address]
+        usd_bal =  math.ceil((sol_bal * sol_price) * 100) / 100
+        # print('sol_bal',sol_bal)
+        # print('sol_price',sol_price)
+        # print('usd_bal',usd_bal)
+        return {"sol_bal":sol_bal, "usd_bal":usd_bal}
 
 
     async def button_click_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -125,7 +140,6 @@ class Bot():
         await query.answer()
         callback_data = query.data
         print('context.chat_data>>>>>>>>>>>>>>>>>', context.chat_data)
-
 
 
         if callback_data == 'wallet':
@@ -141,20 +155,30 @@ class Bot():
         elif callback_data == 'positions':
             await query.edit_message_text(text="You clicked positions")
         elif callback_data == 'list_token':
-            # msgStr = '<p> respone text for paragarph &lt;/p&gt;'
-            msgStr = '&lt;p&gt; respone text for paragarph &lt;/p&gt;'
-            await self.send_message(chat_id, msgStr, context, None, "", "", "html")
-
-
-
-
-
-
-
-
-
-
-
+            retrieved_user = await get_user_by_userId(int(chat_id))
+            accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
+            tokens = accInfo.value
+            
+            formatted_message = []
+            formatted_message.append(f"<u><b>Manage your tokens</b></u>\nWallet: <code>{retrieved_user.publicKey}</code>\n")
+            
+            show_bal = True
+            for token in tokens:
+                if(show_bal):
+                    res = self.getBalance(retrieved_user.publicKey)
+                    formatted_message.append(f"Balance: {res.get('sol_bal')} SOL (${res.get('usd_bal')})\n")
+                show_bal = False
+    
+                info = token.account.data.parsed.get('info')
+                ui_amount = info.get('tokenAmount', {}).get('uiAmount')
+                mint = info.get('mint')
+                token_info = self.get_token_info(mint)
+           
+                formatted_message.append(f"<b>{token_info['name']}</b> - {token_info['symbol']}")
+                formatted_message.append(f"<code>{mint}</code>")
+                formatted_message.append(f"Amount: {ui_amount:.6f}\n")
+                message = "\n".join(formatted_message)
+            await self.send_message(chat_id, message, context, None, "", "", ParseMode.HTML)
         elif callback_data == 'back_to_main':
             main_reply_markup = InlineKeyboardMarkup(main_keyboard)
             await query.edit_message_text(text="Hello! This is Crypto Bot, how can I help.", reply_markup=main_reply_markup)
@@ -189,23 +213,12 @@ class Bot():
             retrieved_user = await get_user_by_userId(int(chat_id))
             if(retrieved_user):
                 try:
-                    response = self.helper.getBalance(Pubkey.from_string(retrieved_user.publicKey))
-                    print('getBalance response >>>>>>>>',response)
-                    sol_bal = math.ceil((response.value / self.one_sol_in_lamports) * 100) / 100
-                        
-                    sol_price_response = requests.get('https://api.raydium.io/v2/main/price')
-                    sol_price_response.raise_for_status()  # Check for HTTP errors
-                    data = sol_price_response.json()
-                    sol_price = data[self.sol_address]
-                    usd_bal =  math.ceil((sol_bal * sol_price) * 100) / 100
-                    # print('sol_bal',sol_bal)
-                    # print('sol_price',sol_price)
-                    # print('usd_bal',usd_bal)
+                    res = self.getBalance(retrieved_user.publicKey)
                     
                     message = (
                         f"*Wallet Balance*\n"
                         f"`{retrieved_user.publicKey}` _\\(Tap to copy\\)_ \n"
-                        f"Balance: {self.escape_dots(sol_bal)} SOL  \\(\\💲{self.escape_dots(usd_bal)}\\)"
+                        f"Balance: {self.escape_dots(res.get('sol_bal'))} SOL  \\(💲{self.escape_dots(res.get('usd_bal'))}\\)"
                     )
                     await self.send_message(chat_id, message, context)
                 except requests.exceptions.HTTPError as http_err:
@@ -231,7 +244,7 @@ class Bot():
             response = requests.get(api_url)
             response.raise_for_status()  # Check for HTTP errors
             data = response.json()
-            print('getTokenData',data)
+            # print('getTokenData',data)
             if data['pairs']:
                 token_info = data['pairs'][0]  # Get the first pair information
                 return {
@@ -371,7 +384,7 @@ class Bot():
 
 
 
-        await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_keyboard, disable_web_page_preview=True, parse_mode=tmpParseMode)
+        await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_keyboard, disable_web_page_preview=True, parse_mode= tmpParseMode)
 
 
     async def send_token_info_and_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE):
