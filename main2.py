@@ -124,7 +124,8 @@ class Bot():
         chat_id = query.from_user.id
         await query.answer()
         callback_data = query.data
-        print('context.chat_data>>>>>>>>>>>>>>>>>', context.chat_data)
+        tmpCallBackType = context.chat_data.get("callbackType", '') or ""
+        tmpPubkey = context.chat_data.get("pubKey", '') or ""
 
 
 
@@ -132,6 +133,7 @@ class Bot():
             submenu_reply_markup = InlineKeyboardMarkup(submenu_keyboard)
             context.chat_data["callbackType"] = callback_data
             await query.edit_message_text(text="Manage Wallet", reply_markup=submenu_reply_markup)
+
         elif callback_data == 'buy_token':
             context.chat_data["callbackType"] = callback_data
             await query.edit_message_text(text="Enter client address to continue:")
@@ -217,7 +219,7 @@ class Bot():
         elif callback_data == 'send_sol':
             await self.send_message(chat_id, f"Enter receiver\\'s public key to send SOL to", context, None, callback_data)    
         elif callback_data == 'buy_0.1_sol':
-            await self.send_message(chat_id, f"Buying 0\\.1 SOL", context)
+            await self.buyToken(chat_id, context, tmpPubkey, tmpCallBackType, 0.1)
         elif callback_data == 'buy_x_sol':
             await self.send_message(chat_id, f"Please enter the amount of SOL you want to swap:", context)    
         elif callback_data == 'sell_x_percent':
@@ -231,7 +233,7 @@ class Bot():
             response = requests.get(api_url)
             response.raise_for_status()  # Check for HTTP errors
             data = response.json()
-            print('getTokenData',data)
+            # print('getTokenData',data)
             if data['pairs']:
                 token_info = data['pairs'][0]  # Get the first pair information
                 return {
@@ -262,7 +264,6 @@ class Bot():
         chat_id = update.message.chat.id
         tmpCallBackType = context.chat_data.get("callbackType", '') or ""
         tmpPubkey = context.chat_data.get("pubKey", '') or ""
-        print('chat_type', chat_type, "tmpCallBackType>>>>>>>>>>>>",tmpCallBackType, "<<<<<<tmpPubkey>>>>>>>>>>", tmpPubkey)
         
         if chat_type == "private":
             # Capture any word over 32 characters
@@ -277,8 +278,21 @@ class Bot():
                 public_key = public_key_match[0]
                 print('-public_key', public_key)
 
-                if(tmpCallBackType == "buy_token" or tmpCallBackType == "transfer_token"):
+                if(tmpCallBackType == "transfer_token"):
                     await self.send_message(chat_id, f"Enter amount to proceed for token:" + public_key, context, None, tmpCallBackType, public_key)
+                
+                elif(tmpCallBackType == "buy_token"):
+                    
+                    token_address = token_addresses[0]
+                    print('-address', token_address)
+                    token_info = self.get_token_info(token_address)
+                    # print('token_info>>>>>>>>>>>>>>>>>', token_info, "public_key>>>>>>>>>", public_key)
+                    if token_info:
+                        await self.send_token_info_and_swap_menu(chat_id, token_info, token_address, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = public_key)
+                    else:
+                        await self.send_message(chat_id, f"Token information not found for address: {token_address}", context)
+
+
                 else:
                     await self.send_message(chat_id, f"You have not selected transaction type for the specified pubkey:"+public_key, context, None, "", "")
                 
@@ -288,22 +302,25 @@ class Bot():
 
 
 
-                # await send_message(chat_id, f"Enter amount to proceed for token:" + public_key, context, None, tmpCallBackType, public_key)
+            #     await self.send_message(chat_id, f"Enter amount to proceed for token:" + public_key, context, None, tmpCallBackType, public_key)
             
             # The below code is commented as vineet(as of 1st Aug) didn't get what it does.
             # elif token_addresses:
+            # if token_addresses:
             #     token_address = token_addresses[0]
             #     print('-address', token_address)
-            #     token_info = get_token_info(token_address)
+            #     token_info = self.get_token_info(token_address)
+            #     print('token_info>>>>>>>>>>>>>>>>>', token_info)
             #     if token_info:
-            #         await send_token_info_and_swap_menu(chat_id, token_info, token_address, context)
+            #         await self.send_token_info_and_swap_menu(chat_id, token_info, token_address, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = tmpPubkey)
             #     else:
-            #         await send_message(chat_id, f"Token information not found for address: {token_address}", context)
+            #         await self.send_message(chat_id, f"Token information not found for address: {token_address}", context)
+
+
             elif re.match(r'^\d*\.?\d+$', text):
                 inputAmount = float(text)
                 # amount = inputAmount * one_sol_in_lamports
                 # amount = '{:f}'.format(inputAmount * one_sol_in_lamports)
-                amount = int(inputAmount * self.one_sol_in_lamports)
 
 
                 if(not(tmpCallBackType == "buy_token" or tmpCallBackType == "transfer_token")):
@@ -317,35 +334,36 @@ class Bot():
 
 
                 if(tmpPubkey is not None):
-                    retrieved_user = await get_user_by_userId(int(chat_id))
-                    # print('retrieved_user in buy',retrieved_user)
-                    if(retrieved_user):
-                        sender = Keypair.from_base58_string(retrieved_user.keypair)
-                        receiver = Pubkey.from_string(tmpPubkey)
-                        if(tmpCallBackType == "transfer_token"):
-                            txn = self.helper.transactionFun(sender, receiver, amount)
-                            if(txn):
-                                print('txn:-',txn)
-                                await self.send_message(chat_id, f"[SOL](https://solscan.io/tx/{txn}?cluster=devnet) sent successfully", context)
-                            else:
-                                await self.send_message(chat_id, f"🔴 Insufficient Balance", context)
-                        elif(tmpCallBackType == "buy_token"):
-                            # need to work from here 
+                    self.buyToken(chat_id, context, tmpPubkey, tmpCallBackType, inputAmount)
+                    # retrieved_user = await get_user_by_userId(int(chat_id))
+                    # # print('retrieved_user in buy',retrieved_user)
+                    # if(retrieved_user):
+                    #     sender = Keypair.from_base58_string(retrieved_user.keypair)
+                    #     receiver = Pubkey.from_string(tmpPubkey)
+                    #     if(tmpCallBackType == "transfer_token"):
+                    #         txn = self.helper.transactionFun(sender, receiver, amount)
+                    #         if(txn):
+                    #             print('txn:-',txn)
+                    #             await self.send_message(chat_id, f"[SOL](https://solscan.io/tx/{txn}?cluster=devnet) sent successfully", context)
+                    #         else:
+                    #             await self.send_message(chat_id, f"🔴 Insufficient Balance", context)
+                    #     elif(tmpCallBackType == "buy_token"):
+                    #         # need to work from here 
 
-                            tmpJupiterHel = self.jupiterHelper.initializeJup(sender)
-                            print("tmpJupiterHel>>>>>>>>>>>>>>>>>>>>>", tmpJupiterHel)
-                            slippage = 100  # 1% slippage in basis points
-                            jup_txn_id = await self.jupiterHelper.execute_swap(receiver, amount, slippage, sender)
-                            print("jup_txn_id>>>>>>>>>>>>>>>>>>>>", jup_txn_id)
-                            if not jup_txn_id:
-                                print('txn failed>>>>>>')
-                                await self.send_message(chat_id, f"There is some technical issue while buying the token", context)
-                            else:
-                                await self.send_message(chat_id, f"[SOL](https://solscan.io/tx/{jup_txn_id}) buy successfully", context)
+                    #         tmpJupiterHel = self.jupiterHelper.initializeJup(sender)
+                    #         print("tmpJupiterHel>>>>>>>>>>>>>>>>>>>>>", tmpJupiterHel)
+                    #         slippage = 100  # 1% slippage in basis points
+                    #         jup_txn_id = await self.jupiterHelper.execute_swap(receiver, amount, slippage, sender)
+                    #         print("jup_txn_id>>>>>>>>>>>>>>>>>>>>", jup_txn_id)
+                    #         if not jup_txn_id:
+                    #             print('txn failed>>>>>>')
+                    #             await self.send_message(chat_id, f"There is some technical issue while buying the token", context)
+                    #         else:
+                    #             await self.send_message(chat_id, f"[SOL](https://solscan.io/tx/{jup_txn_id}) buy successfully", context)
                             
 
-                    else:
-                        await self.send_message(chat_id, f"You don\'t have any wallet to send SOL", context)
+                    # else:
+                    #     await self.send_message(chat_id, f"You don\'t have any wallet to send SOL", context)
                 else:
                     await self.send_message(chat_id, f"Enter receiver\\'s public key", context)
             elif re.match(r'^\d+(\.\d+)?%$', text):
@@ -355,13 +373,17 @@ class Bot():
                 # asyncio.run(handle_sell(chat_id, percentage))
             else:
                 print('private chat replyback')
-                await self.send_message(chat_id, response, context)
+                msg = await self.send_message(chat_id, response, context, message_id=update.message.message_id)
+                # print("msg>>>>>>>>>>>>>>>>>>", msg)
+                # await asyncio.sleep(0.5)
+                # await self.edit_message_text(text="text updated by vineet",chat_id = chat_id,  message_id = msg.message_id,  context = context, )
+                # await update.edit_message(text="Manage Wallet updatd string here vineet", )
         else:
             print('-group replyback')
             await update.message.reply_text(response)
 
 
-    async def send_message(self, chat_id, message, context: ContextTypes.DEFAULT_TYPE, reply_keyboard=None, callbackType="", userFilledPubkey="", parseMode=""):
+    async def send_message(self, chat_id, message, context: ContextTypes.DEFAULT_TYPE, reply_keyboard=None, callbackType="", userFilledPubkey="", parseMode="", message_id=None):
         print('-sendmsg chatId', chat_id,)
         tmpParseMode = parseMode or 'MarkdownV2'
         print('-sendmsg text', message, "parseMode>>>>>>>>>>>>", parseMode, 'tmpParseMode.>>>>>>', tmpParseMode)
@@ -371,10 +393,17 @@ class Bot():
 
 
 
-        await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_keyboard, disable_web_page_preview=True, parse_mode=tmpParseMode)
+        return await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_keyboard, disable_web_page_preview=True, parse_mode=tmpParseMode, reply_to_message_id = message_id)
+
+    async def edit_message_text(self,chat_id, text, message_id, context: ContextTypes.DEFAULT_TYPE,  parseMode=""):
+        tmpParseMode = parseMode or 'MarkdownV2'
+        print('-message_id text', message_id, "parseMode>>>>>>>>>>>>", parseMode, 'tmpParseMode.>>>>>>', tmpParseMode)
 
 
-    async def send_token_info_and_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE):
+        return await context.bot.edit_message_text(text=text,chat_id = chat_id,  message_id=message_id, parse_mode=tmpParseMode)
+
+
+    async def send_token_info_and_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = ""):
         # global buy_flag
         buy_button_text = "----BUY ✅----" # if buy_flag else "BUY"
         sell_button_text = "----SELL 🔴----" # if not buy_flag else "SELL"
@@ -390,9 +419,10 @@ class Bot():
         sell_25_text = "Sell 25%" #if selected_option[chat_id]["sell"] == "25" else "Sell 25%"
 
         token_info_message = (
-            f"{token_info['symbol']} \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
+            f"Buy {token_info['symbol']} \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
             f"`{token_address}` _\\(Tap to copy\\)_ \n\n"
             f"*Price \\(USD\\):* {self.escape_dots(token_info['price_usd'])}\n"
+            f"*Liquidity \\(USD\\):* {self.escape_dots(token_info['liquidity_usd'])}\n"
             # f"*Liquidity \\(USD\\):* {escape_dots(token_info['liquidity_usd'])}\n"
             f"*FDV:* {token_info['fdv']}\n"
             # f"__Choose an action__\\:"
@@ -410,23 +440,23 @@ class Bot():
                 {"text": buy_1_sol_text, "callback_data": "buy_1_sol"},
                 {"text": "Buy with X SOL", "callback_data": "buy_x_sol"}
             ],
-            [
-                {"text": sell_button_text, "callback_data": "toggle_sell_mode"}
-            ],
-            [
-                {"text": sell_25_text, "callback_data": "sell_25_percent"},
-                {"text": sell_50_text, "callback_data": "sell_50_percent"},
-            ],
-            [
-                {"text": sell_100_text, "callback_data": "sell_100_percent"},
-                {"text": "Sell X%", "callback_data": "sell_x_percent"}
-            ],
+            # [
+            #     {"text": sell_button_text, "callback_data": "toggle_sell_mode"}
+            # ],
+            # [
+            #     {"text": sell_25_text, "callback_data": "sell_25_percent"},
+            #     {"text": sell_50_text, "callback_data": "sell_50_percent"},
+            # ],
+            # [
+            #     {"text": sell_100_text, "callback_data": "sell_100_percent"},
+            #     {"text": "Sell X%", "callback_data": "sell_x_percent"}
+            # ],
             # [
             #     {"text": "Execute", "callback_data": "execute_trade"}
             # ]
         ])
 
-        await self.send_message(chat_id, token_info_message, context, reply_keyboard)
+        await self.send_message(chat_id, token_info_message, context, reply_keyboard,callbackType = callBackType,userFilledPubkey = publicKey, message_id = message_id)
 
 
 
@@ -436,7 +466,37 @@ class Bot():
 
     def decode_key(encoded_key: str) -> bytes:
         return base64.b64decode(encoded_key)
+    
+    
+    async def buyToken(self, chat_id, context, tmpPubkey, tmpCallBackType, inputAmount):
+        amount = int(inputAmount * self.one_sol_in_lamports)
+        retrieved_user = await get_user_by_userId(int(chat_id))
+        if(retrieved_user):
+            sender = Keypair.from_base58_string(retrieved_user.keypair)
+            receiver = Pubkey.from_string(tmpPubkey)
+            if(tmpCallBackType == "transfer_token"):
+                txn = self.helper.transactionFun(sender, receiver, amount)
+                if(txn):
+                    print('txn:-',txn)
+                    await self.send_message(chat_id, f"[SOL](https://solscan.io/tx/{txn}?cluster=devnet) sent successfully", context)
+                else:
+                    await self.send_message(chat_id, f"🔴 Insufficient Balance", context)
+            elif(tmpCallBackType == "buy_token"):
+                # need to work from here 
 
+                tmpJupiterHel = self.jupiterHelper.initializeJup(sender)
+                slippage = 100  # 1% slippage in basis points
+                jup_txn_id = await self.jupiterHelper.execute_swap(receiver, amount, slippage, sender)
+                print("jup_txn_id>>>>>>>>>>>>>>>>>>>>", jup_txn_id)
+                if not jup_txn_id:
+                    print('txn failed>>>>>>')
+                    await self.send_message(chat_id, f"There is some technical issue while buying the token", context)
+                else:
+                    await self.send_message(chat_id, f"[SOL](https://solscan.io/tx/{jup_txn_id}) buy successfully", context)
+                
+
+        else:
+            await self.send_message(chat_id, f"You don\'t have any wallet to send SOL", context)
 
 
 
