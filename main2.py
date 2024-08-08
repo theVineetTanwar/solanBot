@@ -158,6 +158,7 @@ class Bot():
         elif callback_data == 'positions':
             await query.edit_message_text(text="You clicked positions")
         elif callback_data == 'list_token':
+            msg = await self.send_message(chat_id, f"_Fetching your tokens_", context)
             retrieved_user = await get_user_by_userId(int(chat_id))
             accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
             tokens = accInfo.value
@@ -166,11 +167,11 @@ class Bot():
             formatted_message.append(f"<u><b>Manage your tokens</b></u>\nWallet: <code>{retrieved_user.publicKey}</code>\n")
             
             show_bal = True
-            message = " No information found for tokens"
+            message = "No information found for tokens"
             for token in tokens:
                 if(show_bal):
                     res = self.getBalance(retrieved_user.publicKey)
-                    formatted_message.append(f"Balance: {res.get('sol_bal')} SOL (${res.get('usd_bal')})\n")
+                    formatted_message.append(f"Balance: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>\n")
                 show_bal = False
     
                 info = token.account.data.parsed.get('info')
@@ -182,10 +183,8 @@ class Bot():
                     formatted_message.append(f"<code>{mint}</code>")
                     formatted_message.append(f"Amount: {ui_amount:.6f}\n")
                     message = "\n".join(formatted_message)
-                # else:
-                #     formatted_message = f"Token Information not fount"
-                # message = "\n".join(formatted_message)
-            await self.send_message(chat_id, message, context, None, "", "", ParseMode.HTML)
+
+            await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
         elif callback_data == 'back_to_main':
             main_reply_markup = InlineKeyboardMarkup(main_keyboard)
             await query.edit_message_text(text="Hello! This is Crypto Bot, how can I help.", reply_markup=main_reply_markup)
@@ -299,7 +298,7 @@ class Bot():
                 print('-public_key', public_key)
 
                 if(tmpCallBackType == "transfer_token"):
-                    await self.send_message(chat_id, f"Enter amount to proceed for token:" + public_key, context, None, tmpCallBackType, public_key)
+                    await self.send_message(chat_id, f"Enter amount to proceed for token: \n_{public_key}_", context, None, tmpCallBackType, public_key)
                 
                 elif(tmpCallBackType == "buy_token"):                 
                     token_address = token_addresses[0]
@@ -311,7 +310,7 @@ class Bot():
                     else:
                         await self.send_message(chat_id, f"Token information not found for address: {token_address}", context)
                 else:
-                    await self.send_message(chat_id, f"You have not selected transaction type for the specified pubkey:"+public_key, context, None, "", "")
+                    await self.send_message(chat_id, f"You have not selected transaction type for the specified pubkey:\n"+public_key, context, None, "", "")
                 
 
 
@@ -355,9 +354,9 @@ class Bot():
         return await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_keyboard, disable_web_page_preview=True, parse_mode=tmpParseMode, reply_to_message_id = message_id)
 
 
-    async def edit_message_text(self,chat_id, text, message_id, context: ContextTypes.DEFAULT_TYPE,  parseMode=""):
+    async def edit_message_text(self, chat_id, text, message_id, context: ContextTypes.DEFAULT_TYPE,  parseMode=""):
         tmpParseMode = parseMode or 'MarkdownV2'
-        return await context.bot.edit_message_text(text=text,chat_id = chat_id,  message_id=message_id, parse_mode=tmpParseMode)
+        return await context.bot.edit_message_text(text=text,chat_id = chat_id, disable_web_page_preview=True, message_id=message_id, parse_mode=tmpParseMode)
 
 
     async def send_token_info_and_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = ""):
@@ -440,8 +439,13 @@ class Bot():
                 # await asyncio.sleep(3)
                 if(txn):
                     print('txn:-',txn)
-                    await self.edit_message_text(text=f"[SOL](https://solscan.io/tx/{txn}?cluster=devnet) sent successfully", chat_id = chat_id, message_id = msg.message_id, context = context)
-                    # await self.send_message(chat_id, f"[SOL](https://solscan.io/tx/{txn}?cluster=devnet) sent successfully", context)
+                    message = []
+                    message.append(f"✅<b><a href='https://solscan.io/tx/{txn}?cluster=devnet'>SOL</a></b> transferred Successfully\n")
+                    message.append(f"<b>Sender</b>: <i><code>{sender.pubkey()}</code></i>\n")
+                    message.append(f"<b>Receiver</b>: <i><code>{receiver}</code></i>\n")
+                    message.append(f"Amount: <b>{inputAmount} SOL</b>\n")
+                    formatted_message = "\n".join(message)
+                    await self.edit_message_text(text=formatted_message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
                 else:
                     await self.send_message(chat_id, f"🔴 Insufficient Balance", context)
             elif(tmpCallBackType == "buy_token"):
@@ -456,10 +460,8 @@ class Bot():
                 if not jup_txn_id:
                     print('txn failed>>>>>>')
                     await self.edit_message_text(text=f"There is some technical issue while buying the token", chat_id = chat_id, message_id = msg.message_id, context = context)
-                    # await self.send_message(chat_id, f"There is some technical issue while buying the token", context)
                 else:
                     await self.edit_message_text(text=f"[SOL](https://solscan.io/tx/{jup_txn_id}) bought successfully", chat_id = chat_id, message_id = msg.message_id, context = context)
-                    # await self.send_message(chat_id, f"[SOL](https://solscan.io/tx/{jup_txn_id}) bought successfully", context)
                 
 
         else:
