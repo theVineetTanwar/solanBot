@@ -178,11 +178,11 @@ class Bot():
                 ui_amount = info.get('tokenAmount', {}).get('uiAmount')
                 mint = info.get('mint')
                 token_info = self.get_token_info(mint)
-           
-                formatted_message.append(f"<b>{token_info['name']}</b> - {token_info['symbol']}")
-                formatted_message.append(f"<code>{mint}</code>")
-                formatted_message.append(f"Amount: {ui_amount:.6f}\n")
-                message = "\n".join(formatted_message)
+                if token_info: 
+                    formatted_message.append(f"<b>{token_info['name']}</b> - {token_info['symbol']}")
+                    formatted_message.append(f"<code>{mint}</code>")
+                    formatted_message.append(f"Amount: {ui_amount:.6f}\n")
+                    message = "\n".join(formatted_message)
             await self.send_message(chat_id, message, context, None, "", "", ParseMode.HTML)
         elif callback_data == 'back_to_main':
             main_reply_markup = InlineKeyboardMarkup(main_keyboard)
@@ -383,7 +383,7 @@ class Bot():
             # f"__Choose an action__\\:"
         )
         
-        amount = 123456453453252
+        # amount = 123456453453252
         # usd_string = locale.currency(amount, grouping=True)
         # print('curr',usd_string)
 
