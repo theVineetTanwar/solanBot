@@ -45,7 +45,7 @@ wallet_collection = db.wallet
 
 BOT_NAME: Final = '@crypto737263_bot'
 chain_id = "solana"  # Change to the appropriate chain ID
-locale.setlocale(locale.LC_ALL, 'en_US.UTF-8') 
+# locale.setlocale(locale.LC_ALL, 'en_US.UTF-8') 
 
 
 main_keyboard = [
@@ -376,14 +376,16 @@ class Bot():
             f"Buy *{token_info['symbol']}* \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
             f"`{token_address}` _\\(Tap to copy\\)_ \n\n"
             f"Price: *${self.escape_dots(token_info['price_usd'])}*\n"
-            f"Liquidity: *{self.escape_dots(locale.currency(token_info['liquidity_usd'], grouping=True))}*\n"
-            f"FDV: *{self.escape_dots(locale.currency(token_info['fdv'], grouping=True))}*\n"
+            # f"Liquidity: *{self.escape_dots(locale.currency(token_info['liquidity_usd'], grouping=True))}*\n"
+            f"Liquidity: *{self.escape_dots(token_info['liquidity_usd'])}*\n"
+            # f"FDV: *{self.escape_dots(locale.currency(token_info['fdv'], grouping=True))}*\n"
+            f"FDV: *{self.escape_dots(token_info['fdv'])}*\n"
             # f"__Choose an action__\\:"
         )
         
         amount = 123456453453252
-        usd_string = locale.currency(amount, grouping=True)
-        print('curr',usd_string)
+        # usd_string = locale.currency(amount, grouping=True)
+        # print('curr',usd_string)
 
         reply_keyboard = InlineKeyboardMarkup([
             [
