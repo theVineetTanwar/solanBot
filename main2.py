@@ -158,13 +158,14 @@ class Bot():
         elif callback_data == 'positions':
             await query.edit_message_text(text="You clicked positions")
         elif callback_data == 'list_token':
-            msg = await self.send_message(chat_id, f"_Fetching your tokens_", context)
+            msg = await self.send_message(chat_id, f"_Fetching your tokens\\.\\.\\._", context)
             retrieved_user = await get_user_by_userId(int(chat_id))
             accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
+            print('accInfo',accInfo)
             tokens = accInfo.value
             
             formatted_message = []
-            formatted_message.append(f"<u><b>Manage your tokens</b></u>\nWallet: <code>{retrieved_user.publicKey}</code>\n")
+            formatted_message.append(f"<b>Manage your tokens</b>\nWallet: <code>{retrieved_user.publicKey}</code>\n")
             
             show_bal = True
             message = "No information found for tokens"
@@ -172,6 +173,7 @@ class Bot():
                 if(show_bal):
                     res = self.getBalance(retrieved_user.publicKey)
                     formatted_message.append(f"Balance: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>\n")
+                    # formatted_message.append(f"Positions: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>\n")
                 show_bal = False
     
                 info = token.account.data.parsed.get('info')
@@ -179,9 +181,29 @@ class Bot():
                 mint = info.get('mint')
                 token_info = self.get_token_info(mint)
                 if token_info: 
-                    formatted_message.append(f"<b>{token_info['name']}</b> - {token_info['symbol']}")
+                    
+                    response = requests.get('https://api.raydium.io/v2/main/price')
+                    response.raise_for_status()  # Check for HTTP errors
+                    price_list = response.json()
+                    sol_curr_price = price_list[self.sol_address]
+                    curr_price_of_token = price_list[mint]
+                                
+                    price_of_owned_token = curr_price_of_token * ui_amount
+                    rounded_price_of_owned_token = round(price_of_owned_token, 6)
+                    print('rounded_price_of_owned_token',rounded_price_of_owned_token)
+                    
+                    qty_in_sol = rounded_price_of_owned_token / sol_curr_price
+                    print("qty_in_sol",qty_in_sol)
+
+                    
+                    formatted_message.append(f"<b><a href='https://dexscreener.com/{chain_id}/{mint}'>{str(token_info['symbol']).upper()} - 📈</a></b> {qty_in_sol:.2f} SOL - (${rounded_price_of_owned_token:.2f})")
+           
                     formatted_message.append(f"<code>{mint}</code>")
-                    formatted_message.append(f"Amount: {ui_amount:.6f}\n")
+                    
+                    formatted_message.append(f"● Price: <b>${token_info['price_usd']}</b>")
+                    formatted_message.append(f"● Amount (owned): <b>{ui_amount:.6f}</b>\n")
+                    
+                    
                     message = "\n".join(formatted_message)
 
             await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
