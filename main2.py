@@ -159,7 +159,8 @@ class Bot():
             await query.edit_message_text(text="You clicked positions")
         elif callback_data == 'list_token':
             msg = await self.send_message(chat_id, f"_Fetching your tokens\\.\\.\\._", context)
-            retrieved_user = await get_user_by_userId(int(922898192))
+            retrieved_user = await get_user_by_userId(int(chat_id))
+            # retrieved_user = await get_user_by_userId(int(922898192))
             accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
             print('accInfo',accInfo)
             tokens = accInfo.value
