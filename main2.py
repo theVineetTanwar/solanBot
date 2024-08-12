@@ -31,17 +31,12 @@ from solanaHelper import SolanaHelper
 from jupiter import JupiterHelper
 from decimal import Decimal
 from swap.solanaSwap import SolanaSwapModule
+from userModel import UserModel, get_user_by_userId, get_users, insert_user, update_user, delete_user
 import constant
 
 load_dotenv()
 
-dbURI = os.getenv("dbURI")
 TOKEN = os.getenv("TOKEN")
-# SHYFT_API_KEY = os.getenv("SHYFT_API_KEY")
-mongoClient = MongoClient(dbURI)
-db = mongoClient.telegram 
-wallet_collection = db.wallet 
-
 BOT_NAME: Final = '@crypto737263_bot'
 chain_id = "solana"  # Change to the appropriate chain ID
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8') 
@@ -49,32 +44,29 @@ locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 main_keyboard = [
     [
-        {"text": "Buy Tokens", "callback_data": "buy_token"},
-        {"text": "Positions", "callback_data": "positions"}
+        {"text": "Buy", "callback_data": "buy_token"},
+        {"text": "Sell", "callback_data": "sell_token"},
     ],
     [
         {"text": "Wallet", "callback_data": "wallet"},
+        {"text": "Positions", "callback_data": "list_token"}
+    ],
+    [
         {"text": "Settings", "callback_data": "settings"},
     ],
     [
         {"text": "Transfer Token", "callback_data": "transfer_token"},
-    ],
-    [
-        {"text": "List tokens", "callback_data": "list_token"},
     ],
 ]
 
 submenu_keyboard = [
     [
         InlineKeyboardButton("Generate Wallet", callback_data='generate_wallet'),
-    ],
-    [
         InlineKeyboardButton("Export Private Key", callback_data='export_private_key'),
-        InlineKeyboardButton("Check Balance", callback_data='get_balance'),
     ],
     [
+        InlineKeyboardButton("Check Balance", callback_data='get_balance'),
         InlineKeyboardButton("Withdraw SOL", callback_data='withdraw_sol'),
-        InlineKeyboardButton("Send SOL", callback_data='send_sol'),
     ],
     [
         InlineKeyboardButton("Back", callback_data='back_to_main'),
@@ -150,6 +142,9 @@ class Bot():
             await query.edit_message_text(text="Manage Wallet", reply_markup=submenu_reply_markup)
 
         elif callback_data == 'buy_token':
+            context.chat_data["callbackType"] = callback_data
+            await query.edit_message_text(text="Enter token address to continue:")
+        elif callback_data == 'sell_token':
             context.chat_data["callbackType"] = callback_data
             await query.edit_message_text(text="Enter token address to continue:")
         elif callback_data == 'transfer_token':
@@ -252,7 +247,7 @@ class Bot():
                     message = (
                         f"*Wallet Balance*\n"
                         f"`{retrieved_user.publicKey}` _\\(Tap to copy\\)_ \n"
-                        f"Balance: {self.escape_dots(res.get('sol_bal'))} SOL  \\(💲{self.escape_dots(res.get('usd_bal'))}\\)"
+                        f"Balance: *{self.escape_dots(res.get('sol_bal'))} SOL  \\(${self.escape_dots(res.get('usd_bal'))}*\\)"
                     )
                     await self.send_message(chat_id, message, context)
                 except requests.exceptions.HTTPError as http_err:
@@ -261,8 +256,6 @@ class Bot():
                     print(f"Other error occurred: {err}")
             else:
                 await self.send_message(chat_id, f"You don\\'t have any wallet", context)
-        elif callback_data == 'send_sol':
-            await self.send_message(chat_id, f"Enter receiver\\'s public key to send SOL to", context, None, callback_data)    
         elif callback_data == 'buy_0.1_sol':
             await self.buyToken(chat_id, context, tmpPubkey, tmpCallBackType, 0.1)   
         elif callback_data == 'buy_0.5_sol':
@@ -486,6 +479,7 @@ class Bot():
                 self.solanaSwapModule.initializeTracker(sender)
                 slippage = 100  # 1% slippage in basis points
                 jup_txn_id = await self.solanaSwapModule.execute_swap(tmpPubkey, inputAmount, slippage, sender, constant.input_mint)
+                # jup_txn_id = await self.solanaSwapModule.execute_swap(tmpPubkey, inputAmount, slippage, sender, constant.input_mint)
                 # jup_txn_id = await self.jupiterHelper.execute_swap(tmpPubkey, amount, slippage, sender)
                 if not jup_txn_id:
                     print('txn failed>>>>>>')
@@ -501,90 +495,6 @@ class Bot():
 
 
 
-
-
-
-
-
-
-
-class UserModel(BaseModel):
-    userId: int = Field(..., unique=True)
-    privateKey: str
-    publicKey: str
-    keypair: str
-    
-    @field_validator('privateKey')
-    def check_base64(cls, v):
-        try:
-            base64.b64decode(v)
-            return v
-        except Exception as e:
-            raise ValueError("Invalid base64 encoded key")
-
-    class Config:
-        populate_by_name = True
-        json_encoders = {ObjectId: str}
-        json_schema_extra = {
-            "example": {
-                "userId": "3234323432",
-                "privateKey": base64.b64encode(b'some_private_key').decode('utf-8'),
-                "publicKey": "ptgjndf985544",
-                "keypair": "sdfbsd8y8dsiu44",
-            }
-        }
-        
-
-async def insert_user(user_data: UserModel):
-    try:
-        # convert the Pydantic model to a dictionary
-        wallet_dict = user_data.dict(by_alias=True)
-        result = wallet_collection.insert_one(wallet_dict)
-        print(f'User inserted with id: {result.inserted_id}')
-    except Exception as e:
-        print(f'Error inserting user: {e}')
-        
-
-async def get_user_by_userId(userId: int) -> Optional[UserModel]:
-    try:
-        wallet_dict = wallet_collection.find_one({"userId": userId})
-        print('walleteddddd',wallet_dict)
-        if wallet_dict:
-            return UserModel(**wallet_dict)
-    except Exception as e:
-        print(f'Error getting user: {e}')
-    return None
-
-def get_users() -> list[UserModel]:
-    try:
-        users = []
-        for user_dict in wallet_collection.find():
-            users.append(UserModel(**user_dict))
-        return users
-    except Exception as e:
-        print(f'Error getting all users: {e}')
-        return []
-
-async def update_user(userId: int, update_data: dict):
-    try:
-        result = await wallet_collection.update_one({"userId": userId}, {"$set": update_data})
-        print('update_user result',result)
-        if result.modified_count:
-            print(f'User updated')
-        else:
-            print(f'No user found with userId: {userId}')
-    except Exception as e:
-        print(f'Error updating user: {e}')
-
-def delete_user(userId: str):
-    try:
-        result = wallet_collection.delete_one({"userId": userId})
-        if result.deleted_count:
-            print(f'User deleted')
-        else:
-            print(f'No user found with userId: {userId}')
-    except Exception as e:
-        print(f'Error deleting user: {e}')
 
 
 
