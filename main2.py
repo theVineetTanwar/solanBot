@@ -50,32 +50,29 @@ locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 main_keyboard = [
     [
-        {"text": "Buy Tokens", "callback_data": "buy_token"},
-        {"text": "Positions", "callback_data": "positions"}
+        {"text": "Buy", "callback_data": "buy_token"},
+        {"text": "Sell", "callback_data": "sell_token"},
     ],
     [
         {"text": "Wallet", "callback_data": "wallet"},
+        {"text": "Positions", "callback_data": "list_token"}
+    ],
+    [
         {"text": "Settings", "callback_data": "settings"},
     ],
     [
         {"text": "Transfer Token", "callback_data": "transfer_token"},
-    ],
-    [
-        {"text": "List tokens", "callback_data": "list_token"},
     ],
 ]
 
 submenu_keyboard = [
     [
         InlineKeyboardButton("Generate Wallet", callback_data='generate_wallet'),
-    ],
-    [
         InlineKeyboardButton("Export Private Key", callback_data='export_private_key'),
-        InlineKeyboardButton("Check Balance", callback_data='get_balance'),
     ],
     [
+        InlineKeyboardButton("Check Balance", callback_data='get_balance'),
         InlineKeyboardButton("Withdraw SOL", callback_data='withdraw_sol'),
-        InlineKeyboardButton("Send SOL", callback_data='send_sol'),
     ],
     [
         InlineKeyboardButton("Back", callback_data='back_to_main'),
@@ -152,6 +149,9 @@ class Bot():
             await query.edit_message_text(text="Manage Wallet", reply_markup=submenu_reply_markup)
 
         elif callback_data == 'buy_token':
+            context.chat_data["callbackType"] = callback_data
+            await query.edit_message_text(text="Enter token address to continue:")
+        elif callback_data == 'sell_token':
             context.chat_data["callbackType"] = callback_data
             await query.edit_message_text(text="Enter token address to continue:")
         elif callback_data == 'transfer_token':
@@ -254,7 +254,7 @@ class Bot():
                     message = (
                         f"*Wallet Balance*\n"
                         f"`{retrieved_user.publicKey}` _\\(Tap to copy\\)_ \n"
-                        f"Balance: {self.escape_dots(res.get('sol_bal'))} SOL  \\(💲{self.escape_dots(res.get('usd_bal'))}\\)"
+                        f"Balance: *{self.escape_dots(res.get('sol_bal'))} SOL  \\(${self.escape_dots(res.get('usd_bal'))}*\\)"
                     )
                     await self.send_message(chat_id, message, context)
                 except requests.exceptions.HTTPError as http_err:
@@ -263,8 +263,6 @@ class Bot():
                     print(f"Other error occurred: {err}")
             else:
                 await self.send_message(chat_id, f"You don\\'t have any wallet", context)
-        elif callback_data == 'send_sol':
-            await self.send_message(chat_id, f"Enter receiver\\'s public key to send SOL to", context, None, callback_data)    
         elif callback_data == 'buy_0.1_sol':
             await self.buyToken(chat_id, context, tmpPubkey, tmpCallBackType, 0.1)   
         elif callback_data == 'buy_0.5_sol':
@@ -488,6 +486,7 @@ class Bot():
                 self.solanaSwapModule.initializeTracker(sender)
                 slippage = 100  # 1% slippage in basis points
                 jup_txn_id = await self.solanaSwapModule.execute_swap(tmpPubkey, inputAmount, slippage, sender, constant.input_mint)
+                # jup_txn_id = await self.solanaSwapModule.execute_swap(tmpPubkey, inputAmount, slippage, sender, constant.input_mint)
                 # jup_txn_id = await self.jupiterHelper.execute_swap(tmpPubkey, amount, slippage, sender)
                 if not jup_txn_id:
                     print('txn failed>>>>>>')

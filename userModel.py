@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field
+import os
+import base64
+from pydantic import BaseModel, Field, field_validator # v2 needed
 from bson import ObjectId
 from typing import Optional
 import base64
