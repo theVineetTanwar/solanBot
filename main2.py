@@ -43,7 +43,7 @@ mongoClient = MongoClient(dbURI)
 db = mongoClient.telegram 
 wallet_collection = db.wallet 
 
-BOT_NAME: Final = '@crypto737263_bot'
+BOT_NAME: Final = 'crypto737263_bot'
 chain_id = "solana"  # Change to the appropriate chain ID
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8') 
 
@@ -101,6 +101,7 @@ class Bot():
         app = Application.builder().token(TOKEN).build()
 
         app.add_handler(CommandHandler('main', self.main_command))
+        app.add_handler(CommandHandler('start', self.start_command))
         app.add_handler(CallbackQueryHandler(self.button_click_callback))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
         
@@ -118,8 +119,34 @@ class Bot():
 
     async def main_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(main_keyboard)
-        print('uuuu',update,context)
         await update.message.reply_text('Hello! This is Crypto Bot.', reply_markup=reply_markup)
+
+    async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # reply_markup = InlineKeyboardMarkup(main_keyboard)
+        print('uuuu',update)
+        text = update.message.text
+        chat_id = update.message.chat.id
+        message_id = update.message.message_id
+        
+        parts = text.split()
+        cb_type = parts[1].split('-')[0]
+        token = parts[1].split('-')[1]
+        
+        print("Type:", cb_type)
+        print("Token Code:", token)
+        
+        # can stringify data and pass in callback, no need to fetch on every step
+        
+        token_info = self.get_token_info(token)
+        # print('token_info>>>>>>>>>>>>>>>>>', token_info, "public_key>>>>>>>>>", public_key)
+        if token_info:
+            await self.sell_swap_menu(chat_id, token_info, token, context, message_id=update.message.message_id, callBackType = "sell_token")
+        else:
+            await self.send_message(chat_id, f"Token information not found for address: {token}", context)
+        
+        
+        await self.delete_message(chat_id, message_id , context)
+        # await update.message.reply_text('Hello! This is Crypto Bot.', reply_markup=reply_markup)
 
 
 
@@ -156,8 +183,8 @@ class Bot():
             context.chat_data["callbackType"] = callback_data
             msg = await self.send_message(chat_id, f"_Fetching your tokens\\.\\.\\._", context)
             
-            retrieved_user = await get_user_by_userId(int(chat_id))
-            # retrieved_user = await get_user_by_userId(int(922898192))
+            retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
+            # retrieved_user = await self.userModule.get_user_by_userId(int(922898192))
             accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
             tokens = accInfo.value
             
@@ -191,7 +218,7 @@ class Bot():
                 
                     qty_in_sol = rounded_price_of_owned_token / sol_curr_price
                     
-                    formatted_message.append(f"<b><a href='https://t.me/{BOT_NAME}?main=sellToken-{mint}'>{str(token_info['symbol']).upper()} ➖ </a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
+                    formatted_message.append(f"<b><a href='https://t.me/{BOT_NAME}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()} ➖ </a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
                                 
             # print('total_owned_sol',total_owned_sol,toatl_owned_sol_price)
             res = self.getBalance(retrieved_user.publicKey)
@@ -381,7 +408,7 @@ class Bot():
                     token_info = self.get_token_info(token_address)
                     # print('token_info>>>>>>>>>>>>>>>>>', token_info, "public_key>>>>>>>>>", public_key)
                     if token_info:
-                        await self.send_token_info_and_swap_menu(chat_id, token_info, token_address, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = public_key)
+                        await self.buy_swap_menu(chat_id, token_info, token_address, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = public_key)
                     else:
                         await self.send_message(chat_id, f"Token information not found for address: {token_address}", context)
                 else:
@@ -434,7 +461,11 @@ class Bot():
         return await context.bot.edit_message_text(text=text,chat_id = chat_id, disable_web_page_preview=True, message_id=message_id, parse_mode=tmpParseMode)
 
 
-    async def send_token_info_and_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = ""):
+    async def delete_message(self, chat_id, message_id, context: ContextTypes.DEFAULT_TYPE):
+        return await context.bot.delete_message(chat_id = chat_id, message_id=message_id)
+
+
+    async def buy_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = ""):
         # global buy_flag
         buy_button_text = "----BUY ✅----" # if buy_flag else "BUY"
         sell_button_text = "----SELL 🔴----" # if not buy_flag else "SELL"
@@ -458,10 +489,6 @@ class Bot():
             # f"__Choose an action__\\:"
         )
         
-        amount = 123456453453252
-        usd_string = locale.currency(amount, grouping=True)
-        print('curr',usd_string)
-
         reply_keyboard = InlineKeyboardMarkup([
             [
                 {"text": buy_button_text, "callback_data": "toggle_buy_mode"}
@@ -492,6 +519,87 @@ class Bot():
 
         await self.send_message(chat_id, token_info_message, context, reply_keyboard,callbackType = callBackType,userFilledPubkey = publicKey, message_id = message_id)
 
+
+
+    async def sell_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = ""):
+        sell_button_text = "----SELL 🔴----" # if not buy_flag else "SELL"
+
+        sell_25_text = "Sell 25%" #if selected_option[chat_id]["sell"] == "25" else "Sell 25%"
+        sell_50_text = "Sell 50%" #if selected_option[chat_id]["sell"] == "50" else "Sell 50%"
+        sell_100_text = "Sell 100%" #if selected_option[chat_id]["sell"] == "100" else "Sell 100%"
+        sell_x_text = "Sell X %" #if selected_option[chat_id]["sell"] == "100" else "Sell 100%"
+        
+        
+        retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
+        accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
+        tokens = accInfo.value
+        
+        global balance
+        for token in tokens:   
+            info = token.account.data.parsed.get('info')
+            ui_amount = info.get('tokenAmount', {}).get('uiAmount')
+            mint = info.get('mint')
+            if(mint == token_address):
+                balance = ui_amount
+                # token_info = self.get_token_info(mint)
+                # if token_info: 
+                #     response = requests.get('https://api.raydium.io/v2/main/price')
+                #     response.raise_for_status()  # Check for HTTP errors
+                #     price_list = response.json()
+                #     sol_curr_price = price_list[self.sol_address]
+                #     curr_price_of_token = price_list.get(mint, None)
+                    
+                #     if(curr_price_of_token == None):
+                #         api_url = f"https://api.dexscreener.io/latest/dex/tokens/{mint}"
+                #         response = requests.get(api_url)
+                #         response.raise_for_status()  # Check for HTTP errors
+                #         data = response.json()
+                #         if data['pairs']:
+                #             t_info = data['pairs'][0]  # Get the first pair information
+                #             curr_price_of_token = t_info.get('priceUsd', 'N/A')
+                    
+                #     price_of_owned_token = float(curr_price_of_token) * float(ui_amount)
+                #     rounded_price_of_owned_token = round(price_of_owned_token, 6)
+                    
+                #     qty_in_sol = rounded_price_of_owned_token / sol_curr_price
+
+                #     formatted_message.append(f"<b><a href='https://dexscreener.com/{chain_id}/{mint}'>{str(token_info['symbol']).upper()} - 📈</a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
+                #     formatted_message.append(f"<code>{mint}</code>")
+                #     formatted_message.append(f"● Price: <b>${token_info['price_usd']}</b>")
+                #     formatted_message.append(f"● Amount (owned): <b>{ui_amount:.6f}</b> {str(token_info['symbol']).upper()}\n")
+                                
+        # print('total_owned_sol',total_owned_sol,toatl_owned_sol_price)
+        # res = self.getBalance(retrieved_user.publicKey)
+        # formatted_message.insert(1, f"Balance: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>")
+        
+        
+
+        token_info_message = (
+            f"Sell *{token_info['symbol']}* \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
+            f"`{token_address}` _\\(Tap to copy\\)_ \n\n"
+            f"Balance: *${self.escape_dots(ui_amount)} {token_info['symbol'].upper()}*\n"
+            f"Price: *${self.escape_dots(token_info['price_usd'])}*\n"
+            f"Liquidity: *{self.escape_dots(locale.currency(token_info['liquidity_usd'], grouping=True))}*\n"
+            f"FDV: *{self.escape_dots(locale.currency(token_info['fdv'], grouping=True))}*\n"
+            # f"__Choose an action__\\:"
+        )
+
+        reply_keyboard = InlineKeyboardMarkup([
+            [
+                {"text": sell_button_text, "callback_data": "toggle_sell_mode"}
+            ],
+            [
+                {"text": sell_25_text, "callback_data": "buy_0.25_sol"},
+                {"text": sell_50_text, "callback_data": "buy_0.50_sol"},
+            ],
+            [
+                {"text": sell_100_text, "callback_data": "buy_1_sol"},
+                {"text": sell_x_text, "callback_data": "buy_x_sol"}
+            ],
+
+        ])
+
+        await self.send_message(chat_id, token_info_message, context, reply_keyboard,callbackType = callBackType, message_id = message_id)
 
 
 
@@ -543,94 +651,6 @@ class Bot():
         else:
             await self.send_message(chat_id, f"You don\'t have any wallet to send SOL", context)
 
-
-
-
-
-
-
-
-
-
-
-
-# class UserModel(BaseModel):
-#     userId: int = Field(..., unique=True)
-#     privateKey: str
-#     publicKey: str
-#     keypair: str
-    
-#     @field_validator('privateKey')
-#     def check_base64(cls, v):
-#         try:
-#             base64.b64decode(v)
-#             return v
-#         except Exception as e:
-#             raise ValueError("Invalid base64 encoded key")
-
-#     class Config:
-#         populate_by_name = True
-#         json_encoders = {ObjectId: str}
-#         json_schema_extra = {
-#             "example": {
-#                 "userId": "3234323432",
-#                 "privateKey": base64.b64encode(b'some_private_key').decode('utf-8'),
-#                 "publicKey": "ptgjndf985544",
-#                 "keypair": "sdfbsd8y8dsiu44",
-#             }
-#         }
-        
-
-# async def insert_user(user_data: UserModel):
-#     try:
-#         # convert the Pydantic model to a dictionary
-#         wallet_dict = user_data.dict(by_alias=True)
-#         result = wallet_collection.insert_one(wallet_dict)
-#         print(f'User inserted with id: {result.inserted_id}')
-#     except Exception as e:
-#         print(f'Error inserting user: {e}')
-        
-
-# async def get_user_by_userId(userId: int) -> Optional[UserModel]:
-#     try:
-#         wallet_dict = wallet_collection.find_one({"userId": userId})
-#         print('walleteddddd',wallet_dict)
-#         if wallet_dict:
-#             return UserModel(**wallet_dict)
-#     except Exception as e:
-#         print(f'Error getting user: {e}')
-#     return None
-
-# def get_users() -> list[UserModel]:
-#     try:
-#         users = []
-#         for user_dict in wallet_collection.find():
-#             users.append(UserModel(**user_dict))
-#         return users
-#     except Exception as e:
-#         print(f'Error getting all users: {e}')
-#         return []
-
-# async def update_user(userId: int, update_data: dict):
-#     try:
-#         result = await wallet_collection.update_one({"userId": userId}, {"$set": update_data})
-#         print('update_user result',result)
-#         if result.modified_count:
-#             print(f'User updated')
-#         else:
-#             print(f'No user found with userId: {userId}')
-#     except Exception as e:
-#         print(f'Error updating user: {e}')
-
-# def delete_user(userId: str):
-#     try:
-#         result = wallet_collection.delete_one({"userId": userId})
-#         if result.deleted_count:
-#             print(f'User deleted')
-#         else:
-#             print(f'No user found with userId: {userId}')
-#     except Exception as e:
-#         print(f'Error deleting user: {e}')
 
 
 
