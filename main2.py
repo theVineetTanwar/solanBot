@@ -32,6 +32,7 @@ from jupiter import JupiterHelper
 from decimal import Decimal
 from swap.solanaSwap import SolanaSwapModule
 import constant
+from userModel import UserModule , UserModel
 
 load_dotenv()
 
@@ -94,6 +95,7 @@ class Bot():
         self.helper = SolanaHelper()
         self.jupiterHelper = JupiterHelper()
         self.solanaSwapModule = SolanaSwapModule(constant.solanaTrackerURL)
+        self.userModule = UserModule(wallet_collection)
 
     
     
@@ -159,8 +161,8 @@ class Bot():
             await query.edit_message_text(text="You clicked positions")
         elif callback_data == 'list_token':
             msg = await self.send_message(chat_id, f"_Fetching your tokens\\.\\.\\._", context)
-            retrieved_user = await get_user_by_userId(int(chat_id))
-            # retrieved_user = await get_user_by_userId(int(922898192))
+            retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
+            # retrieved_user = await self.userModule.get_user_by_userId(int(922898192))
             accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
             print('accInfo',accInfo)
             tokens = accInfo.value
@@ -213,14 +215,14 @@ class Bot():
             formatted_message.insert(1, f"Balance: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>")
             formatted_message.insert(2, f"Positions: <b>{total_owned_sol:.6f} SOL (${toatl_owned_sol_price:.2f})</b>\n")
             message = "\n".join(formatted_message)
-            print("formatted_message",formatted_message)
+            # print("formatted_message",formatted_message)
             await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
         elif callback_data == 'back_to_main':
             main_reply_markup = InlineKeyboardMarkup(main_keyboard)
             await query.edit_message_text(text="Hello! This is Crypto Bot, how can I help.", reply_markup=main_reply_markup)
         elif callback_data == 'generate_wallet':
 
-            retrieved_user = await get_user_by_userId(int(chat_id))
+            retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
             if (retrieved_user == None):
                 keypair = Keypair()
                 # private_key = str(keypair.secret())
@@ -229,13 +231,13 @@ class Bot():
                 keypairStr = str(keypair)
                 
                 new_user = UserModel(userId=chat_id, privateKey=private_key, publicKey=public_key, keypair = keypairStr)
-                await insert_user(new_user)
+                await self.userModule.insert_user(new_user)
                 await self.send_message(chat_id, f"🎉 Wallet generated\n*Public Key*: _`{public_key}`_ \\(Tap to copy\\)", context)
             else:
                 print('wallet already exist')
                 await self.send_message(chat_id, f"A wallet is already created with your account\\.\nCurrently we support only one wallet per user\nYour *Public Key*: _`{retrieved_user.publicKey}`_ \\(Tap to copy\\)", context)
         elif callback_data == 'export_private_key':
-            retrieved_user = await get_user_by_userId(int(chat_id))
+            retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
             if(retrieved_user):
                 # pk = self.decode_key(str(retrieved_user.privateKey))
                 print('retrieved_user',retrieved_user)
@@ -244,7 +246,7 @@ class Bot():
             else:
                 await self.send_message(chat_id, f"You don\\'t have any wallet", context)
         elif callback_data == 'get_balance':
-            retrieved_user = await get_user_by_userId(int(chat_id))
+            retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
             if(retrieved_user):
                 try:
                     res = self.getBalance(retrieved_user.publicKey)
@@ -459,7 +461,7 @@ class Bot():
     
     async def buyToken(self, chat_id, context, tmpPubkey, tmpCallBackType, inputAmount):
         amount = int(inputAmount * self.one_sol_in_lamports)
-        retrieved_user = await get_user_by_userId(int(chat_id))
+        retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
         if(retrieved_user):
             sender = Keypair.from_base58_string(retrieved_user.keypair)
             receiver = Pubkey.from_string(tmpPubkey)
@@ -508,83 +510,83 @@ class Bot():
 
 
 
-class UserModel(BaseModel):
-    userId: int = Field(..., unique=True)
-    privateKey: str
-    publicKey: str
-    keypair: str
+# class UserModel(BaseModel):
+#     userId: int = Field(..., unique=True)
+#     privateKey: str
+#     publicKey: str
+#     keypair: str
     
-    @field_validator('privateKey')
-    def check_base64(cls, v):
-        try:
-            base64.b64decode(v)
-            return v
-        except Exception as e:
-            raise ValueError("Invalid base64 encoded key")
+#     @field_validator('privateKey')
+#     def check_base64(cls, v):
+#         try:
+#             base64.b64decode(v)
+#             return v
+#         except Exception as e:
+#             raise ValueError("Invalid base64 encoded key")
 
-    class Config:
-        populate_by_name = True
-        json_encoders = {ObjectId: str}
-        json_schema_extra = {
-            "example": {
-                "userId": "3234323432",
-                "privateKey": base64.b64encode(b'some_private_key').decode('utf-8'),
-                "publicKey": "ptgjndf985544",
-                "keypair": "sdfbsd8y8dsiu44",
-            }
-        }
+#     class Config:
+#         populate_by_name = True
+#         json_encoders = {ObjectId: str}
+#         json_schema_extra = {
+#             "example": {
+#                 "userId": "3234323432",
+#                 "privateKey": base64.b64encode(b'some_private_key').decode('utf-8'),
+#                 "publicKey": "ptgjndf985544",
+#                 "keypair": "sdfbsd8y8dsiu44",
+#             }
+#         }
         
 
-async def insert_user(user_data: UserModel):
-    try:
-        # convert the Pydantic model to a dictionary
-        wallet_dict = user_data.dict(by_alias=True)
-        result = wallet_collection.insert_one(wallet_dict)
-        print(f'User inserted with id: {result.inserted_id}')
-    except Exception as e:
-        print(f'Error inserting user: {e}')
+# async def insert_user(user_data: UserModel):
+#     try:
+#         # convert the Pydantic model to a dictionary
+#         wallet_dict = user_data.dict(by_alias=True)
+#         result = wallet_collection.insert_one(wallet_dict)
+#         print(f'User inserted with id: {result.inserted_id}')
+#     except Exception as e:
+#         print(f'Error inserting user: {e}')
         
 
-async def get_user_by_userId(userId: int) -> Optional[UserModel]:
-    try:
-        wallet_dict = wallet_collection.find_one({"userId": userId})
-        print('walleteddddd',wallet_dict)
-        if wallet_dict:
-            return UserModel(**wallet_dict)
-    except Exception as e:
-        print(f'Error getting user: {e}')
-    return None
+# async def get_user_by_userId(userId: int) -> Optional[UserModel]:
+#     try:
+#         wallet_dict = wallet_collection.find_one({"userId": userId})
+#         print('walleteddddd',wallet_dict)
+#         if wallet_dict:
+#             return UserModel(**wallet_dict)
+#     except Exception as e:
+#         print(f'Error getting user: {e}')
+#     return None
 
-def get_users() -> list[UserModel]:
-    try:
-        users = []
-        for user_dict in wallet_collection.find():
-            users.append(UserModel(**user_dict))
-        return users
-    except Exception as e:
-        print(f'Error getting all users: {e}')
-        return []
+# def get_users() -> list[UserModel]:
+#     try:
+#         users = []
+#         for user_dict in wallet_collection.find():
+#             users.append(UserModel(**user_dict))
+#         return users
+#     except Exception as e:
+#         print(f'Error getting all users: {e}')
+#         return []
 
-async def update_user(userId: int, update_data: dict):
-    try:
-        result = await wallet_collection.update_one({"userId": userId}, {"$set": update_data})
-        print('update_user result',result)
-        if result.modified_count:
-            print(f'User updated')
-        else:
-            print(f'No user found with userId: {userId}')
-    except Exception as e:
-        print(f'Error updating user: {e}')
+# async def update_user(userId: int, update_data: dict):
+#     try:
+#         result = await wallet_collection.update_one({"userId": userId}, {"$set": update_data})
+#         print('update_user result',result)
+#         if result.modified_count:
+#             print(f'User updated')
+#         else:
+#             print(f'No user found with userId: {userId}')
+#     except Exception as e:
+#         print(f'Error updating user: {e}')
 
-def delete_user(userId: str):
-    try:
-        result = wallet_collection.delete_one({"userId": userId})
-        if result.deleted_count:
-            print(f'User deleted')
-        else:
-            print(f'No user found with userId: {userId}')
-    except Exception as e:
-        print(f'Error deleting user: {e}')
+# def delete_user(userId: str):
+#     try:
+#         result = wallet_collection.delete_one({"userId": userId})
+#         if result.deleted_count:
+#             print(f'User deleted')
+#         else:
+#             print(f'No user found with userId: {userId}')
+#     except Exception as e:
+#         print(f'Error deleting user: {e}')
 
 
 
