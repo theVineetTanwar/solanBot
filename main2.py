@@ -93,7 +93,7 @@ class Bot():
         self.sol_address = "So11111111111111111111111111111111111111112"
         self.helper = SolanaHelper()
         self.jupiterHelper = JupiterHelper()
-        self.solanaSwapModule = SolanaSwapModule(constant.solanaTrackerURL, constant.input_mint)
+        self.solanaSwapModule = SolanaSwapModule(constant.solanaTrackerURL)
 
     
     
@@ -485,7 +485,7 @@ class Bot():
                 # tmpJupiterHel = self.jupiterHelper.initializeJup(sender)
                 self.solanaSwapModule.initializeTracker(sender)
                 slippage = 100  # 1% slippage in basis points
-                jup_txn_id = await self.solanaSwapModule.execute_swap(tmpPubkey, inputAmount, slippage, sender)
+                jup_txn_id = await self.solanaSwapModule.execute_swap(tmpPubkey, inputAmount, slippage, sender, constant.input_mint)
                 # jup_txn_id = await self.jupiterHelper.execute_swap(tmpPubkey, amount, slippage, sender)
                 if not jup_txn_id:
                     print('txn failed>>>>>>')

@@ -6,20 +6,18 @@ import time
 class SolanaSwapModule():
     def __init__(
         self,
-        url,
-        input_mint
+        url
     ):
         """Init API client."""
         super().__init__()
         self.solana_rpc_url = url
-        self.input_mint = input_mint
 
 
     def initializeTracker(self, keypair):
         self.solana_tracker = SolanaTracker(keypair, self.solana_rpc_url)
         return self.solana_tracker
     
-    async def execute_swap(self, output_mint: str, amount, slippage_bps: int, sender: Keypair):
+    async def execute_swap(self, output_mint: str, amount, slippage_bps: int, sender: Keypair, input_mint: str):
 
         start_time = time.time()
 
@@ -27,7 +25,7 @@ class SolanaSwapModule():
         self.solana_tracker = SolanaTracker(sender, self.solana_rpc_url)
         
         swap_response = await self.solana_tracker.get_swap_instructions(
-            self.input_mint,
+            input_mint,
             output_mint,
             amount,
             slippage_bps,  # Slippage
@@ -35,6 +33,8 @@ class SolanaSwapModule():
             0.00005,  # Priority fee (Recommended while network is congested)
         )
 
+        if ('txn' not in swap_response or swap_response['txn'] == ''):
+            return None
         
         # Define custom options
         custom_options = {
@@ -49,9 +49,10 @@ class SolanaSwapModule():
         }
         
         try:
-            send_time = time.time()
-            # return "id>>>"
+            # send_time = time.time()
             txid = await self.solana_tracker.perform_swap(swap_response, options=custom_options)
+            if not txid:
+                return None
             end_time = time.time()
             elapsed_time = end_time - start_time
             
@@ -65,4 +66,3 @@ class SolanaSwapModule():
             print("Swap failed:", str(e))
             return None
             # Add retries or additional error handling as needed
-
