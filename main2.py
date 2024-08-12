@@ -177,7 +177,6 @@ class Bot():
                 mint = info.get('mint')
                 token_info = self.get_token_info(mint)
                 if token_info: 
-                    
                     response = requests.get('https://api.raydium.io/v2/main/price')
                     response.raise_for_status()  # Check for HTTP errors
                     price_list = response.json()
@@ -203,14 +202,11 @@ class Bot():
                     # print("qty_in_sol",qty_in_sol)
                     total_owned_sol = total_owned_sol + qty_in_sol
                     toatl_owned_sol_price = toatl_owned_sol_price + rounded_price_of_owned_token
-
                     
                     formatted_message.append(f"<b><a href='https://dexscreener.com/{chain_id}/{mint}'>{str(token_info['symbol']).upper()} - 📈</a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
-           
                     formatted_message.append(f"<code>{mint}</code>")
-                    
                     formatted_message.append(f"● Price: <b>${token_info['price_usd']}</b>")
-                    formatted_message.append(f"● Amount (owned): <b>{ui_amount:.6f}</b>\n")
+                    formatted_message.append(f"● Amount (owned): <b>{ui_amount:.6f}</b> {str(token_info['symbol']).upper()}\n")
                                 
             # print('total_owned_sol',total_owned_sol,toatl_owned_sol_price)
             res = self.getBalance(retrieved_user.publicKey)
@@ -495,7 +491,7 @@ class Bot():
                     print('txn failed>>>>>>')
                     await self.edit_message_text(text=f"There is some technical issue while buying the token", chat_id = chat_id, message_id = msg.message_id, context = context)
                 else:
-                    await self.edit_message_text(text=f"[SOL](https://solscan.io/tx/{jup_txn_id}) bought successfully", chat_id = chat_id, message_id = msg.message_id, context = context)
+                    await self.edit_message_text(text=f"_🟢 Buy Success\\!_ [View on Solscan](https://solscan.io/tx/{jup_txn_id})", chat_id = chat_id, message_id = msg.message_id, context = context)
                 
 
         else:
