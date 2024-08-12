@@ -3,13 +3,9 @@ import base64
 from pydantic import BaseModel, Field, field_validator # v2 needed
 from bson import ObjectId
 from typing import Optional
+import base64
 from pymongo import MongoClient
-
-
-dbURI = os.getenv("dbURI")
-mongoClient = MongoClient(dbURI)
-db = mongoClient.telegram 
-wallet_collection = db.wallet 
+from pydantic import BaseModel, Field, field_validator # v2 needed
 
 
 class UserModel(BaseModel):
@@ -39,53 +35,69 @@ class UserModel(BaseModel):
         }
         
 
-async def insert_user(user_data: UserModel):
-    try:
-        # convert the Pydantic model to a dictionary
-        wallet_dict = user_data.dict(by_alias=True)
-        result = wallet_collection.insert_one(wallet_dict)
-        print(f'User inserted with id: {result.inserted_id}')
-    except Exception as e:
-        print(f'Error inserting user: {e}')
+
+
+class UserModule():
+    def __init__(
+        self,
+        wallet_collection
+    ):
+        """Init API client."""
+        super().__init__()
+        self.wallet_collection =  wallet_collection
         
 
-async def get_user_by_userId(userId: int) -> Optional[UserModel]:
-    try:
-        wallet_dict = wallet_collection.find_one({"userId": userId})
-        print('walleteddddd',wallet_dict)
-        if wallet_dict:
-            return UserModel(**wallet_dict)
-    except Exception as e:
-        print(f'Error getting user: {e}')
-    return None
+        
+    async def insert_user(self, user_data: UserModel):
+        try:
+            # convert the Pydantic model to a dictionary
+            wallet_dict = user_data.dict(by_alias=True)
+            result = self.wallet_collection.insert_one(wallet_dict)
+            print(f'User inserted with id: {result.inserted_id}')
+        except Exception as e:
+            print(f'Error inserting user: {e}')
+            
 
-def get_users() -> list[UserModel]:
-    try:
-        users = []
-        for user_dict in wallet_collection.find():
-            users.append(UserModel(**user_dict))
-        return users
-    except Exception as e:
-        print(f'Error getting all users: {e}')
-        return []
+    async def get_user_by_userId(self, userId: int) -> Optional[UserModel]:
+        try:
+            wallet_dict = self.wallet_collection.find_one({"userId": userId})
+            print('walleteddddd',wallet_dict)
+            if wallet_dict:
+                return UserModel(**wallet_dict)
+        except Exception as e:
+            print(f'Error getting user: {e}')
+        return None
 
-async def update_user(userId: int, update_data: dict):
-    try:
-        result = await wallet_collection.update_one({"userId": userId}, {"$set": update_data})
-        print('update_user result',result)
-        if result.modified_count:
-            print(f'User updated')
-        else:
-            print(f'No user found with userId: {userId}')
-    except Exception as e:
-        print(f'Error updating user: {e}')
+    def get_users(self) -> list[UserModel]:
+        try:
+            users = []
+            for user_dict in self.wallet_collection.find():
+                users.append(UserModel(**user_dict))
+            return users
+        except Exception as e:
+            print(f'Error getting all users: {e}')
+            return []
 
-def delete_user(userId: str):
-    try:
-        result = wallet_collection.delete_one({"userId": userId})
-        if result.deleted_count:
-            print(f'User deleted')
-        else:
-            print(f'No user found with userId: {userId}')
-    except Exception as e:
-        print(f'Error deleting user: {e}')
+    async def update_user(self, userId: int, update_data: dict):
+        try:
+            result = await self.wallet_collection.update_one({"userId": userId}, {"$set": update_data})
+            print('update_user result',result)
+            if result.modified_count:
+                print(f'User updated')
+            else:
+                print(f'No user found with userId: {userId}')
+        except Exception as e:
+            print(f'Error updating user: {e}')
+
+    def delete_user(self, userId: str):
+        try:
+            result = self.wallet_collection.delete_one({"userId": userId})
+            if result.deleted_count:
+                print(f'User deleted')
+            else:
+                print(f'No user found with userId: {userId}')
+        except Exception as e:
+            print(f'Error deleting user: {e}')
+
+
+    
