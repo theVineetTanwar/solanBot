@@ -168,17 +168,10 @@ class Bot():
             formatted_message = []
             formatted_message.append(f"<b>Manage your tokens</b>\nWallet: <code>{retrieved_user.publicKey}</code>\n")
             
-            show_bal = True
             message = "No information found for tokens"
             total_owned_sol = 0
             toatl_owned_sol_price = 0
-            for token in tokens:
-                if(show_bal):
-                    res = self.getBalance(retrieved_user.publicKey)
-                    formatted_message.append(f"Balance: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>")
-                    # formatted_message.append(f"Positions: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>\n")
-                show_bal = False
-    
+            for token in tokens:   
                 info = token.account.data.parsed.get('info')
                 ui_amount = info.get('tokenAmount', {}).get('uiAmount')
                 mint = info.get('mint')
@@ -218,10 +211,11 @@ class Bot():
                     
                     formatted_message.append(f"● Price: <b>${token_info['price_usd']}</b>")
                     formatted_message.append(f"● Amount (owned): <b>{ui_amount:.6f}</b>\n")
-                    
-                    # message = "\n".join(formatted_message)
-    
-            formatted_message.insert(2, f"Positions: <b>{total_owned_sol:.6} SOL (${toatl_owned_sol_price:.6})</b>\n")
+                                
+            # print('total_owned_sol',total_owned_sol,toatl_owned_sol_price)
+            res = self.getBalance(retrieved_user.publicKey)
+            formatted_message.insert(1, f"Balance: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>")
+            formatted_message.insert(2, f"Positions: <b>{total_owned_sol:.6f} SOL (${toatl_owned_sol_price:.2f})</b>\n")
             message = "\n".join(formatted_message)
             print("formatted_message",formatted_message)
             await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
