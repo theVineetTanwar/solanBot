@@ -170,7 +170,6 @@ class Bot():
             msg = await self.send_message(chat_id, f"_Fetching your tokens\\.\\.\\._", context)
             
             retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
-            # retrieved_user = await self.userModule.get_user_by_userId(int(922898192))
             accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
             tokens = accInfo.value
             
@@ -191,13 +190,7 @@ class Bot():
                     curr_price_of_token = price_list.get(mint, None)
                     
                     if(curr_price_of_token == None):
-                        api_url = f"https://api.dexscreener.io/latest/dex/tokens/{mint}"
-                        response = requests.get(api_url)
-                        response.raise_for_status() 
-                        data = response.json()
-                        if data['pairs']:
-                            t_info = data['pairs'][0]  # Get the first pair information
-                            curr_price_of_token = t_info.get('priceUsd', 'N/A')
+                        curr_price_of_token = token_info['price_usd']
                     
                     price_of_owned_token = float(curr_price_of_token) * float(ui_amount)
                     rounded_price_of_owned_token = round(price_of_owned_token, 6)
@@ -206,7 +199,6 @@ class Bot():
                     
                     formatted_message.append(f"<b><a href='https://t.me/{constant.bot_name}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()} ➖ </a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
                                 
-            # print('total_owned_sol',total_owned_sol,toatl_owned_sol_price)
             res = self.getBalance(retrieved_user.publicKey)
             formatted_message.insert(1, f"Balance: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>\n")
             message = "\n".join(formatted_message)
@@ -219,6 +211,7 @@ class Bot():
             await query.edit_message_text(text="You clicked positions")
         elif callback_data == 'list_token':
             msg = await self.send_message(chat_id, f"_Fetching your tokens\\.\\.\\._", context)
+            
             retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
             # retrieved_user = await self.userModule.get_user_by_userId(int(922898192))
             accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
@@ -246,14 +239,10 @@ class Bot():
                     if(curr_price_of_token == None):
                         curr_price_of_token = token_info['price_usd']
                     
-                    # print("curr_price_of_token",curr_price_of_token)
-                    # print("ui_amount",ui_amount)
                     price_of_owned_token = float(curr_price_of_token) * float(ui_amount)
                     rounded_price_of_owned_token = round(price_of_owned_token, 6)
-                    # print('rounded_price_of_owned_token',rounded_price_of_owned_token)
                     
                     qty_in_sol = rounded_price_of_owned_token / sol_curr_price
-                    # print("qty_in_sol",qty_in_sol)
                     total_owned_sol = total_owned_sol + qty_in_sol
                     toatl_owned_sol_price = toatl_owned_sol_price + rounded_price_of_owned_token
                     
@@ -262,12 +251,11 @@ class Bot():
                     formatted_message.append(f"● Price: <b>${token_info['price_usd']}</b>")
                     formatted_message.append(f"● Amount (owned): <b>{ui_amount:.6f}</b> {str(token_info['symbol']).upper()}\n")
                                 
-            # print('total_owned_sol',total_owned_sol,toatl_owned_sol_price)
             res = self.getBalance(retrieved_user.publicKey)
             formatted_message.insert(1, f"Balance: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>")
             formatted_message.insert(2, f"Positions: <b>{total_owned_sol:.6f} SOL (${toatl_owned_sol_price:.2f})</b>\n")
             message = "\n".join(formatted_message)
-            # print("formatted_message",formatted_message)
+            
             await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
         elif callback_data == 'back_to_main':
             main_reply_markup = InlineKeyboardMarkup(main_keyboard)
