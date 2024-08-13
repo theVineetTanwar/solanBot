@@ -107,6 +107,7 @@ class Bot():
         reply_markup = InlineKeyboardMarkup(main_keyboard)
         await update.message.reply_text('Hello! This is Crypto Bot.', reply_markup=reply_markup)
 
+
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # reply_markup = InlineKeyboardMarkup(main_keyboard)
         text = update.message.text
@@ -119,15 +120,15 @@ class Bot():
         
         print("Type:", cb_type)
         print("Token Code:", token_to_sell)
-        
-        # can stringify data and pass in callback, no need to fetch on every step
-        
-        token_info = self.get_token_info(token_to_sell)
-        # print('token_info>>>>>>>>>>>>>>>>>', token_info, "public_key>>>>>>>>>", public_key)
-        if token_info:
-            await self.sell_swap_menu(chat_id, token_info, token_to_sell, context, message_id=update.message.message_id, callBackType = "sell_token")
-        else:
-            await self.send_message(chat_id, f"Token information not found for address: {token_to_sell}", context)
+        if(cb_type == "sellToken"):
+            # can stringify data and pass in callback, no need to fetch on every step
+            
+            token_info = self.get_token_info(token_to_sell)
+            # print('token_info>>>>>>>>>>>>>>>>>', token_info, "public_key>>>>>>>>>", public_key)
+            if token_info:
+                await self.sell_swap_menu(chat_id, token_info, token_to_sell, context, message_id=update.message.message_id, callBackType="sell_token")
+            else:
+                await self.send_message(chat_id, f"Token information not found for address: {token_to_sell}", context)
         
         
         await self.delete_message(chat_id, message_id , context)
@@ -182,7 +183,7 @@ class Bot():
                 info = token.account.data.parsed.get('info')
                 ui_amount = info.get('tokenAmount', {}).get('uiAmount')
                 mint = info.get('mint')
-                token_info = self.get_token_info(mint)
+                token_info = self.get_token_info(mint) # need to find another way to get token Symbol
                 if token_info: 
                     response = requests.get('https://api.raydium.io/v2/main/price')
                     response.raise_for_status()  # Check for HTTP errors
@@ -244,13 +245,7 @@ class Bot():
                     curr_price_of_token = price_list.get(mint, None)
                     
                     if(curr_price_of_token == None):
-                        api_url = f"https://api.dexscreener.io/latest/dex/tokens/{mint}"
-                        response = requests.get(api_url)
-                        response.raise_for_status()  # Check for HTTP errors
-                        data = response.json()
-                        if data['pairs']:
-                            t_info = data['pairs'][0]  # Get the first pair information
-                            curr_price_of_token = t_info.get('priceUsd', 'N/A')
+                        curr_price_of_token = token_info['price_usd']
                     
                     # print("curr_price_of_token",curr_price_of_token)
                     # print("ui_amount",ui_amount)
@@ -331,11 +326,11 @@ class Bot():
             await self.send_message(chat_id, f"Please enter the amount of SOL you want to swap:", context, None, tmpCallBackType, tmpPubkey)    
         elif callback_data == 'sell_25_percent':
             print('sell_25_percent',tmpCallBackType, tmpPubkey)
-            await self.sellToken(chat_id, context, tmpPubkey, tmpCallBackType, 0.25)   
+            await self.sellToken(chat_id, context, tmpPubkey, 0.25)   
         elif callback_data == 'sell_50_percent':
-            await self.sellToken(chat_id, context, tmpPubkey, tmpCallBackType, 0.50)   
+            await self.sellToken(chat_id, context, tmpPubkey, 0.50)   
         elif callback_data == 'sell_100_percent':
-            await self.sellToken(chat_id, context, tmpPubkey, tmpCallBackType, 1)
+            await self.sellToken(chat_id, context, tmpPubkey, 1)
         elif callback_data == 'sell_x_percent':
             print('sell_x_percent',tmpCallBackType)
             await self.send_message(chat_id, f"Please enter the percentage you want to sell:", context, None, tmpCallBackType, tmpPubkey)
@@ -421,7 +416,7 @@ class Bot():
                     return
                 
                 if(tmpPubkey is not None and tmpCallBackType == "sell_token"):
-                    await self.sellToken(chat_id, context, tmpPubkey, tmpCallBackType, inputAmount)
+                    await self.sellToken(chat_id, context, tmpPubkey, inputAmount)
                     return
 
                 if(tmpPubkey is not None):
@@ -626,7 +621,7 @@ class Bot():
         return appended_submenu_keyboard
 
 
-    async def sellToken(self, chat_id, context, token_to_sell, tmpCallBackType, sellPercent):        
+    async def sellToken(self, chat_id, context, token_to_sell, sellPercent):        
         print("SELLLLLTOKEN", sellPercent, token_to_sell)
 
         retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
@@ -637,29 +632,26 @@ class Bot():
             balance = 0
             for token in tokens:   
                 info = token.account.data.parsed.get('info')
-                ui_amount = info.get('tokenAmount', {}).get('uiAmount')
                 mint = info.get('mint')
                 if(mint == token_to_sell):
-                    balance = ui_amount
+                    balance = info.get('tokenAmount', {}).get('uiAmount')
             
             sender = Keypair.from_base58_string(retrieved_user.keypair)
-            if(tmpCallBackType == "sell_token"):
-                msg = await self.send_message(chat_id, f"__Processing swap__", context)
-                
-                amount = float(balance * sellPercent)
-                print('amount>>>>>>>>>>>>>>>>>', amount, "balance>>>>>", balance)
-                # tmpJupiterHel = self.jupiterHelper.initializeJup(sender)
-                self.solanaSwapModule.initializeTracker(sender)
-                slippage = 100  # 1% slippage in basis points
-                jup_txn_id = await self.solanaSwapModule.execute_swap(constant.input_mint, amount, slippage, sender, token_to_sell) # first param is TO token , last param is FROM token
-
-                # jup_txn_id = await self.jupiterHelper.execute_swap(tmpPubkey, amount, slippage, sender)
-                if not jup_txn_id:
-                    print('txn failed>>>>>>')
-                    await self.edit_message_text(text=f"There is some technical issue while selling the token", chat_id = chat_id, message_id = msg.message_id, context = context)
-                else:
-                    await self.edit_message_text(text=f"_🟢 Sell Success\\!_ [View on Solscan](https://solscan.io/tx/{jup_txn_id})", chat_id = chat_id, message_id = msg.message_id, context = context)
-                
+            msg = await self.send_message(chat_id, f"__Processing swap__", context)
+            
+            amount = float(balance * sellPercent)
+            # tmpJupiterHel = self.jupiterHelper.initializeJup(sender)
+            self.solanaSwapModule.initializeTracker(sender)
+            slippage = 100  # 1% slippage in basis points
+            jup_txn_id = await self.solanaSwapModule.execute_swap(constant.input_mint, amount, slippage, sender, token_to_sell) # first param is TO token , last param is FROM token
+            
+            # jup_txn_id = await self.jupiterHelper.execute_swap(tmpPubkey, amount, slippage, sender)
+            if not jup_txn_id:
+                print('txn failed>>>>>>')
+                await self.edit_message_text(text=f"There is some technical issue while selling the token", chat_id = chat_id, message_id = msg.message_id, context = context)
+            else:
+                await self.edit_message_text(text=f"_🟢 Sell Success\\!_ [View on Solscan](https://solscan.io/tx/{jup_txn_id})", chat_id = chat_id, message_id = msg.message_id, context = context)
+            
 
         else:
             await self.send_message(chat_id, f"You don\'t have any wallet to send SOL", context)
