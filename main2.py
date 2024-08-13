@@ -121,7 +121,6 @@ class Bot():
         print("Type:", cb_type)
         print("Token Code:", token_to_sell)
         if(cb_type == "sellToken"):
-            # can stringify data and pass in callback, no need to fetch on every step
             
             token_info = self.get_token_info(token_to_sell)
             # print('token_info>>>>>>>>>>>>>>>>>', token_info, "public_key>>>>>>>>>", public_key)
@@ -258,7 +257,7 @@ class Bot():
                     total_owned_sol = total_owned_sol + qty_in_sol
                     toatl_owned_sol_price = toatl_owned_sol_price + rounded_price_of_owned_token
                     
-                    formatted_message.append(f"<b><a href='https://dexscreener.com/{chain_id}/{mint}'>{str(token_info['symbol']).upper()} - 📈</a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
+                    formatted_message.append(f"<b><a href='https://t.me/{constant.bot_name}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()} - 📈</a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
                     formatted_message.append(f"<code>{mint}</code>")
                     formatted_message.append(f"● Price: <b>${token_info['price_usd']}</b>")
                     formatted_message.append(f"● Amount (owned): <b>{ui_amount:.6f}</b> {str(token_info['symbol']).upper()}\n")
