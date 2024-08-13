@@ -5,7 +5,7 @@
 Lib
 .env
 /__pycache__
-*/__pycache__
+/swap/__pycache__
 **__pycache__
 /share
 share

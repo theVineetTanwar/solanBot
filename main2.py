@@ -43,7 +43,7 @@ mongoClient = MongoClient(dbURI)
 db = mongoClient.telegram 
 wallet_collection = db.wallet 
 
-BOT_NAME: Final = 'crypto737263_bot'
+
 chain_id = "solana"  # Change to the appropriate chain ID
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8') 
 
@@ -63,20 +63,6 @@ main_keyboard = [
     [
         {"text": "Settings", "callback_data": "settings"},
     ],
-]
-
-submenu_keyboard = [
-    [
-        InlineKeyboardButton("Generate Wallet", callback_data='generate_wallet'),
-        InlineKeyboardButton("Export Private Key", callback_data='export_private_key'),
-    ],
-    [
-        InlineKeyboardButton("Check Balance", callback_data='get_balance'),
-        InlineKeyboardButton("Withdraw SOL", callback_data='withdraw_sol'),
-    ],
-    [
-        InlineKeyboardButton("Back", callback_data='back_to_main'),
-    ]
 ]
 
 
@@ -123,7 +109,6 @@ class Bot():
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # reply_markup = InlineKeyboardMarkup(main_keyboard)
-        print('uuuu',update)
         text = update.message.text
         chat_id = update.message.chat.id
         message_id = update.message.message_id
@@ -172,9 +157,10 @@ class Bot():
 
 
         if callback_data == 'wallet':
-            submenu_reply_markup = InlineKeyboardMarkup(submenu_keyboard)
+            tmp_menu = await self.getSubmenuKeyboard(chat_id)
+            submenu_reply_markup = InlineKeyboardMarkup(tmp_menu)
             context.chat_data["callbackType"] = callback_data
-            await query.edit_message_text(text="Manage Wallet", reply_markup=submenu_reply_markup)
+            await query.edit_message_text(text="Manage Your Wallet", reply_markup=submenu_reply_markup)
 
         elif callback_data == 'buy_token':
             context.chat_data["callbackType"] = callback_data
@@ -218,7 +204,7 @@ class Bot():
                 
                     qty_in_sol = rounded_price_of_owned_token / sol_curr_price
                     
-                    formatted_message.append(f"<b><a href='https://t.me/{BOT_NAME}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()} ➖ </a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
+                    formatted_message.append(f"<b><a href='https://t.me/{constant.bot_name}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()} ➖ </a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
                                 
             # print('total_owned_sol',total_owned_sol,toatl_owned_sol_price)
             res = self.getBalance(retrieved_user.publicKey)
@@ -307,7 +293,7 @@ class Bot():
                 await self.send_message(chat_id, f"🎉 Wallet generated\n*Public Key*: _`{public_key}`_ \\(Tap to copy\\)", context)
             else:
                 print('wallet already exist')
-                await self.send_message(chat_id, f"A wallet is already created with your account\\.\nCurrently we support only one wallet per user\nYour *Public Key*: _`{retrieved_user.publicKey}`_ \\(Tap to copy\\)", context)
+                await self.send_message(chat_id, f"Your *Public Key*: _`{retrieved_user.publicKey}`_ \\(Tap to copy\\)", context)
         elif callback_data == 'export_private_key':
             retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
             if(retrieved_user):
@@ -522,7 +508,7 @@ class Bot():
         accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
         tokens = accInfo.value
         
-        balance
+        balance = 0
         for token in tokens:   
             info = token.account.data.parsed.get('info')
             ui_amount = info.get('tokenAmount', {}).get('uiAmount')
@@ -534,7 +520,7 @@ class Bot():
         token_info_message = (
             f"Sell *{token_info['symbol']}* \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
             f"`{token_address}` _\\(Tap to copy\\)_ \n\n"
-            f"Balance: *${self.escape_dots(ui_amount)} {token_info['symbol'].upper()}*\n"
+            f"Balance: *${self.escape_dots(balance)} {token_info['symbol'].upper()}*\n"
             f"Price: *${self.escape_dots(token_info['price_usd'])}*\n"
             f"Liquidity: *{self.escape_dots(locale.currency(token_info['liquidity_usd'], grouping=True))}*\n"
             f"FDV: *{self.escape_dots(locale.currency(token_info['fdv'], grouping=True))}*\n"
@@ -560,10 +546,10 @@ class Bot():
 
 
 
-    def encode_key(key: bytes) -> str:
+    def encode_key(self, key: bytes) -> str:
         return base64.b64encode(key).decode('utf-8')
 
-    def decode_key(encoded_key: str) -> bytes:
+    def decode_key(self, encoded_key: str) -> bytes:
         return base64.b64decode(encoded_key)
     
     
@@ -608,6 +594,37 @@ class Bot():
             await self.send_message(chat_id, f"You don\'t have any wallet to send SOL", context)
 
 
+    async def getSubmenuKeyboard(self, chat_id):
+        retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
+        
+        appended_submenu_keyboard = [
+            [
+                InlineKeyboardButton("Export Private Key", callback_data='export_private_key')
+            ],
+            [
+                InlineKeyboardButton("Check Balance", callback_data='get_balance'),
+                InlineKeyboardButton("Withdraw SOL", callback_data='withdraw_sol'),
+            ],
+        ]
+
+        if (retrieved_user == None):
+            submenu_keyboard = [
+                [
+                    InlineKeyboardButton("Generate Wallet", callback_data='generate_wallet'),
+                    InlineKeyboardButton("Back", callback_data='back_to_main')
+                ]
+            ]
+
+        else:
+            submenu_keyboard = [
+                [
+                    InlineKeyboardButton("View Wallet", callback_data='generate_wallet'),
+                    InlineKeyboardButton("Back", callback_data='back_to_main'),
+                ],
+            ]
+        appended_submenu_keyboard.extend(submenu_keyboard)
+        return appended_submenu_keyboard
+
 
     async def sellToken(self, chat_id, context, token_to_sell, tmpCallBackType, sellPercent):        
         print("SELLLLLTOKEN", sellPercent, token_to_sell)
@@ -617,7 +634,7 @@ class Bot():
             accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
             tokens = accInfo.value
             
-            balance
+            balance = 0
             for token in tokens:   
                 info = token.account.data.parsed.get('info')
                 ui_amount = info.get('tokenAmount', {}).get('uiAmount')
@@ -629,7 +646,8 @@ class Bot():
             if(tmpCallBackType == "sell_token"):
                 msg = await self.send_message(chat_id, f"__Processing swap__", context)
                 
-                amount = int(balance * sellPercent)
+                amount = float(balance * sellPercent)
+                print('amount>>>>>>>>>>>>>>>>>', amount, "balance>>>>>", balance)
                 # tmpJupiterHel = self.jupiterHelper.initializeJup(sender)
                 self.solanaSwapModule.initializeTracker(sender)
                 slippage = 100  # 1% slippage in basis points
