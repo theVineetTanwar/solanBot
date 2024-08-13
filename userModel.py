@@ -61,7 +61,7 @@ class UserModule():
     async def get_user_by_userId(self, userId: int) -> Optional[UserModel]:
         try:
             wallet_dict = self.wallet_collection.find_one({"userId": userId})
-            print('walleteddddd',wallet_dict)
+            # print('walleteddddd',wallet_dict)
             if wallet_dict:
                 return UserModel(**wallet_dict)
         except Exception as e:

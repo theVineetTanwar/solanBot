@@ -130,19 +130,19 @@ class Bot():
         
         parts = text.split()
         cb_type = parts[1].split('-')[0]
-        token = parts[1].split('-')[1]
+        token_to_sell = parts[1].split('-')[1]
         
         print("Type:", cb_type)
-        print("Token Code:", token)
+        print("Token Code:", token_to_sell)
         
         # can stringify data and pass in callback, no need to fetch on every step
         
-        token_info = self.get_token_info(token)
+        token_info = self.get_token_info(token_to_sell)
         # print('token_info>>>>>>>>>>>>>>>>>', token_info, "public_key>>>>>>>>>", public_key)
         if token_info:
-            await self.sell_swap_menu(chat_id, token_info, token, context, message_id=update.message.message_id, callBackType = "sell_token")
+            await self.sell_swap_menu(chat_id, token_info, token_to_sell, context, message_id=update.message.message_id, callBackType = "sell_token")
         else:
-            await self.send_message(chat_id, f"Token information not found for address: {token}", context)
+            await self.send_message(chat_id, f"Token information not found for address: {token_to_sell}", context)
         
         
         await self.delete_message(chat_id, message_id , context)
@@ -343,9 +343,16 @@ class Bot():
             await self.buyToken(chat_id, context, tmpPubkey, tmpCallBackType, 1)
         elif callback_data == 'buy_x_sol':
             await self.send_message(chat_id, f"Please enter the amount of SOL you want to swap:", context, None, tmpCallBackType, tmpPubkey)    
+        elif callback_data == 'sell_25_percent':
+            print('sell_25_percent',tmpCallBackType, tmpPubkey)
+            await self.sellToken(chat_id, context, tmpPubkey, tmpCallBackType, 0.25)   
+        elif callback_data == 'sell_50_percent':
+            await self.sellToken(chat_id, context, tmpPubkey, tmpCallBackType, 0.50)   
+        elif callback_data == 'sell_100_percent':
+            await self.sellToken(chat_id, context, tmpPubkey, tmpCallBackType, 1)
         elif callback_data == 'sell_x_percent':
-            await self.send_message(chat_id, f"Please enter the percentage you want to sell:", context)    
-
+            print('sell_x_percent',tmpCallBackType)
+            await self.send_message(chat_id, f"Please enter the percentage you want to sell:", context, None, tmpCallBackType, tmpPubkey)
 
 
     def get_token_info(self, token_address):
@@ -419,12 +426,16 @@ class Bot():
             elif re.match(r'^\d*\.?\d+$', text):
                 inputAmount = float(text)
 
-                if(not(tmpCallBackType == "buy_token" or tmpCallBackType == "transfer_token")):
+                if(not(tmpCallBackType == "buy_token" or tmpCallBackType == "transfer_token" or tmpCallBackType == "sell_token")):
                     await self.send_message(chat_id, f"You have not selected transaction type for the transaction" , context, None, tmpCallBackType, tmpPubkey)
                     return
                 
                 if(not(re.findall(r'\b[A-HJ-NP-Za-km-z1-9]{44}\b', tmpPubkey) )):
                     await self.send_message(chat_id, f"No public key has been setup for txn" + tmpPubkey, context, None, tmpCallBackType, tmpPubkey)
+                    return
+                
+                if(tmpPubkey is not None and tmpCallBackType == "sell_token"):
+                    await self.sellToken(chat_id, context, tmpPubkey, tmpCallBackType, inputAmount)
                     return
 
                 if(tmpPubkey is not None):
@@ -466,19 +477,11 @@ class Bot():
 
 
     async def buy_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = ""):
-        # global buy_flag
         buy_button_text = "----BUY ✅----" # if buy_flag else "BUY"
-        sell_button_text = "----SELL 🔴----" # if not buy_flag else "SELL"
-
-        # selected_option.setdefault(chat_id, {"buy": None, "sell": None})
 
         buy_0_1_sol_text = "0.1 SOL" # if selected_option[chat_id]["buy"] == "0.1_sol" else "0.1 SOL"
         buy_0_5_sol_text = "0.5 SOL" # if selected_option[chat_id]["buy"] == "0.5_sol" else "0.5 SOL"
         buy_1_sol_text = "1 SOL" # if selected_option[chat_id]["buy"] == "1_sol" else "1 SOL"
-
-        sell_50_text = "Sell 50%" #if selected_option[chat_id]["sell"] == "50" else "Sell 50%"
-        sell_100_text = "Sell 100%" #if selected_option[chat_id]["sell"] == "100" else "Sell 100%"
-        sell_25_text = "Sell 25%" #if selected_option[chat_id]["sell"] == "25" else "Sell 25%"
 
         token_info_message = (
             f"Buy *{token_info['symbol']}* \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
@@ -486,7 +489,6 @@ class Bot():
             f"Price: *${self.escape_dots(token_info['price_usd'])}*\n"
             f"Liquidity: *{self.escape_dots(locale.currency(token_info['liquidity_usd'], grouping=True))}*\n"
             f"FDV: *{self.escape_dots(locale.currency(token_info['fdv'], grouping=True))}*\n"
-            # f"__Choose an action__\\:"
         )
         
         reply_keyboard = InlineKeyboardMarkup([
@@ -501,20 +503,6 @@ class Bot():
                 {"text": buy_1_sol_text, "callback_data": "buy_1_sol"},
                 {"text": "Buy with X SOL", "callback_data": "buy_x_sol"}
             ],
-            # [
-            #     {"text": sell_button_text, "callback_data": "toggle_sell_mode"}
-            # ],
-            # [
-            #     {"text": sell_25_text, "callback_data": "sell_25_percent"},
-            #     {"text": sell_50_text, "callback_data": "sell_50_percent"},
-            # ],
-            # [
-            #     {"text": sell_100_text, "callback_data": "sell_100_percent"},
-            #     {"text": "Sell X%", "callback_data": "sell_x_percent"}
-            # ],
-            # [
-            #     {"text": "Execute", "callback_data": "execute_trade"}
-            # ]
         ])
 
         await self.send_message(chat_id, token_info_message, context, reply_keyboard,callbackType = callBackType,userFilledPubkey = publicKey, message_id = message_id)
@@ -534,44 +522,13 @@ class Bot():
         accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
         tokens = accInfo.value
         
-        global balance
+        balance
         for token in tokens:   
             info = token.account.data.parsed.get('info')
             ui_amount = info.get('tokenAmount', {}).get('uiAmount')
             mint = info.get('mint')
             if(mint == token_address):
                 balance = ui_amount
-                # token_info = self.get_token_info(mint)
-                # if token_info: 
-                #     response = requests.get('https://api.raydium.io/v2/main/price')
-                #     response.raise_for_status()  # Check for HTTP errors
-                #     price_list = response.json()
-                #     sol_curr_price = price_list[self.sol_address]
-                #     curr_price_of_token = price_list.get(mint, None)
-                    
-                #     if(curr_price_of_token == None):
-                #         api_url = f"https://api.dexscreener.io/latest/dex/tokens/{mint}"
-                #         response = requests.get(api_url)
-                #         response.raise_for_status()  # Check for HTTP errors
-                #         data = response.json()
-                #         if data['pairs']:
-                #             t_info = data['pairs'][0]  # Get the first pair information
-                #             curr_price_of_token = t_info.get('priceUsd', 'N/A')
-                    
-                #     price_of_owned_token = float(curr_price_of_token) * float(ui_amount)
-                #     rounded_price_of_owned_token = round(price_of_owned_token, 6)
-                    
-                #     qty_in_sol = rounded_price_of_owned_token / sol_curr_price
-
-                #     formatted_message.append(f"<b><a href='https://dexscreener.com/{chain_id}/{mint}'>{str(token_info['symbol']).upper()} - 📈</a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
-                #     formatted_message.append(f"<code>{mint}</code>")
-                #     formatted_message.append(f"● Price: <b>${token_info['price_usd']}</b>")
-                #     formatted_message.append(f"● Amount (owned): <b>{ui_amount:.6f}</b> {str(token_info['symbol']).upper()}\n")
-                                
-        # print('total_owned_sol',total_owned_sol,toatl_owned_sol_price)
-        # res = self.getBalance(retrieved_user.publicKey)
-        # formatted_message.insert(1, f"Balance: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>")
-        
         
 
         token_info_message = (
@@ -589,17 +546,17 @@ class Bot():
                 {"text": sell_button_text, "callback_data": "toggle_sell_mode"}
             ],
             [
-                {"text": sell_25_text, "callback_data": "buy_0.25_sol"},
-                {"text": sell_50_text, "callback_data": "buy_0.50_sol"},
+                {"text": sell_25_text, "callback_data": "sell_25_percent"},
+                {"text": sell_50_text, "callback_data": "sell_50_percent"},
             ],
             [
-                {"text": sell_100_text, "callback_data": "buy_1_sol"},
-                {"text": sell_x_text, "callback_data": "buy_x_sol"}
+                {"text": sell_100_text, "callback_data": "sell_100_percent"},
+                {"text": sell_x_text, "callback_data": "sell_x_percent"}
             ],
 
         ])
 
-        await self.send_message(chat_id, token_info_message, context, reply_keyboard,callbackType = callBackType, message_id = message_id)
+        await self.send_message(chat_id, token_info_message, context, reply_keyboard,callbackType = callBackType,userFilledPubkey = token_address, message_id = message_id)
 
 
 
@@ -615,8 +572,8 @@ class Bot():
         retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
         if(retrieved_user):
             sender = Keypair.from_base58_string(retrieved_user.keypair)
-            receiver = Pubkey.from_string(tmpPubkey)
             if(tmpCallBackType == "transfer_token"):
+                receiver =   Pubkey.from_string(tmpPubkey)
                 txn = self.helper.transactionFun(sender, receiver, amount)
                 msg = await self.send_message(chat_id, f"__Transferring SOL__", context)
                 # await asyncio.sleep(3)
@@ -632,7 +589,6 @@ class Bot():
                 else:
                     await self.send_message(chat_id, f"🔴 Insufficient Balance", context)
             elif(tmpCallBackType == "buy_token"):
-                # need to work from here 
                 msg = await self.send_message(chat_id, f"__Processing swap__", context)
 
                 # tmpJupiterHel = self.jupiterHelper.initializeJup(sender)
@@ -646,6 +602,45 @@ class Bot():
                     await self.edit_message_text(text=f"There is some technical issue while buying the token", chat_id = chat_id, message_id = msg.message_id, context = context)
                 else:
                     await self.edit_message_text(text=f"_🟢 Buy Success\\!_ [View on Solscan](https://solscan.io/tx/{jup_txn_id})", chat_id = chat_id, message_id = msg.message_id, context = context)
+                
+
+        else:
+            await self.send_message(chat_id, f"You don\'t have any wallet to send SOL", context)
+
+
+
+    async def sellToken(self, chat_id, context, token_to_sell, tmpCallBackType, sellPercent):        
+        print("SELLLLLTOKEN", sellPercent, token_to_sell)
+
+        retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
+        if(retrieved_user):
+            accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
+            tokens = accInfo.value
+            
+            balance
+            for token in tokens:   
+                info = token.account.data.parsed.get('info')
+                ui_amount = info.get('tokenAmount', {}).get('uiAmount')
+                mint = info.get('mint')
+                if(mint == token_to_sell):
+                    balance = ui_amount
+            
+            sender = Keypair.from_base58_string(retrieved_user.keypair)
+            if(tmpCallBackType == "sell_token"):
+                msg = await self.send_message(chat_id, f"__Processing swap__", context)
+                
+                amount = int(balance * sellPercent)
+                # tmpJupiterHel = self.jupiterHelper.initializeJup(sender)
+                self.solanaSwapModule.initializeTracker(sender)
+                slippage = 100  # 1% slippage in basis points
+                jup_txn_id = await self.solanaSwapModule.execute_swap(constant.input_mint, amount, slippage, sender, token_to_sell) # first param is TO token , last param is FROM token
+
+                # jup_txn_id = await self.jupiterHelper.execute_swap(tmpPubkey, amount, slippage, sender)
+                if not jup_txn_id:
+                    print('txn failed>>>>>>')
+                    await self.edit_message_text(text=f"There is some technical issue while selling the token", chat_id = chat_id, message_id = msg.message_id, context = context)
+                else:
+                    await self.edit_message_text(text=f"_🟢 Sell Success\\!_ [View on Solscan](https://solscan.io/tx/{jup_txn_id})", chat_id = chat_id, message_id = msg.message_id, context = context)
                 
 
         else:
