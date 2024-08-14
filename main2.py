@@ -167,25 +167,22 @@ class Bot():
             submenu_reply_markup = InlineKeyboardMarkup(tmp_menu)
             context.chat_data["callbackType"] = callback_data
             await query.edit_message_text(text="Manage Your Wallet", reply_markup=submenu_reply_markup)
-
         elif callback_data == 'buy_token':
             context.chat_data["callbackType"] = callback_data
             await query.edit_message_text(text="Enter token address to continue:")
         elif callback_data == 'sell_token':
             await self.sellTokenFunc(chat_id, context, callback_data)
-
         elif callback_data == 'transfer_token':
             context.chat_data["callbackType"] = callback_data
             await query.edit_message_text(text="Enter receiver\'s address to continue:")
         elif callback_data == 'positions':
             await query.edit_message_text(text="You clicked positions")
         elif callback_data == 'list_token':
-            self.listToken(chat_id, context)
+            await self.listToken(chat_id, context)
         elif callback_data == 'back_to_main':
             main_reply_markup = InlineKeyboardMarkup(main_keyboard)
             await query.edit_message_text(text="Hello! This is Crypto Bot, how can I help.", reply_markup=main_reply_markup)
         elif callback_data == 'generate_wallet':
-
             retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
             if (retrieved_user == None):
                 keypair = Keypair()
@@ -512,32 +509,28 @@ class Bot():
         message = "You don't have any token"
         for token in tokens:   
             info = token.account.data.parsed.get('info')
-            ui_amount = info.get('tokenAmount', {}).get('uiAmount')
-            mint = info.get('mint')
-            token_info = self.get_token_info(mint) # need to find another way to get token Symbol
-            if token_info: 
-                response = requests.get('https://api.raydium.io/v2/main/price')
-                response.raise_for_status()  # Check for HTTP errors
-                price_list = response.json()
-                sol_curr_price = price_list[self.sol_address]
-                curr_price_of_token = price_list.get(mint, None)
+            token_amount = info.get('tokenAmount', {}).get('amount')
+            if int(token_amount) > 0:
+                ui_amount = info.get('tokenAmount', {}).get('uiAmount')
+                mint = info.get('mint')
+                token_info = self.get_token_info(mint) # need to find another way to get token Symbol
+                if token_info: 
+                    response = requests.get('https://api.raydium.io/v2/main/price')
+                    response.raise_for_status()  # Check for HTTP errors
+                    price_list = response.json()
+                    sol_curr_price = price_list[self.sol_address]
+                    curr_price_of_token = price_list.get(mint, None)
+                    
+                    if(curr_price_of_token == None):
+                        curr_price_of_token = token_info['price_usd']
+                    
+                    price_of_owned_token = float(curr_price_of_token) * float(ui_amount)
+                    rounded_price_of_owned_token = round(price_of_owned_token, 6)
                 
-                if(curr_price_of_token == None):
-                    api_url = f"https://api.dexscreener.io/latest/dex/tokens/{mint}"
-                    response = requests.get(api_url)
-                    response.raise_for_status() 
-                    data = response.json()
-                    if data['pairs']:
-                        t_info = data['pairs'][0]  # Get the first pair information
-                        curr_price_of_token = t_info.get('priceUsd', 'N/A')
-                
-                price_of_owned_token = float(curr_price_of_token) * float(ui_amount)
-                rounded_price_of_owned_token = round(price_of_owned_token, 6)
-            
-                qty_in_sol = rounded_price_of_owned_token / sol_curr_price
-                
-                formatted_message.append(f"<b><a href='https://t.me/{constant.bot_name}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()} ➖ </a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
-
+                    qty_in_sol = rounded_price_of_owned_token / sol_curr_price
+                    
+                    formatted_message.append(f"<b><a href='https://t.me/{constant.bot_name}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()} ➖ </a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
+    
                             
         # print('total_owned_sol',total_owned_sol,toatl_owned_sol_price)
         res = self.getBalance(retrieved_user.publicKey)
@@ -615,7 +608,7 @@ class Bot():
 
     async def listToken(self, chat_id, context):    
 
-        msg = await self.send_message(chat_id, f"_Fetching your tokens\\.\\.\\._", context)
+        msg = await self.send_message(chat_id, f"_Fetching your positions\\.\\.\\._", context)
         
         retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
         # retrieved_user = await self.userModule.get_user_by_userId(int(922898192))
@@ -631,31 +624,33 @@ class Bot():
         toatl_owned_sol_price = 0
         for token in tokens:   
             info = token.account.data.parsed.get('info')
-            ui_amount = info.get('tokenAmount', {}).get('uiAmount')
-            mint = info.get('mint')
-            token_info = self.get_token_info(mint)
-            if token_info: 
-                response = requests.get('https://api.raydium.io/v2/main/price')
-                response.raise_for_status()  # Check for HTTP errors
-                price_list = response.json()
-                sol_curr_price = price_list[self.sol_address]
-                curr_price_of_token = price_list.get(mint, None)
-                
-                if(curr_price_of_token == None):
-                    curr_price_of_token = token_info['price_usd']
-                
-                price_of_owned_token = float(curr_price_of_token) * float(ui_amount)
-                rounded_price_of_owned_token = round(price_of_owned_token, 6)
-                
-                qty_in_sol = rounded_price_of_owned_token / sol_curr_price
-                total_owned_sol = total_owned_sol + qty_in_sol
-                toatl_owned_sol_price = toatl_owned_sol_price + rounded_price_of_owned_token
-                
-                formatted_message.append(f"<b><a href='https://t.me/{constant.bot_name}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()} - 📈</a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
-                formatted_message.append(f"<code>{mint}</code>")
-                formatted_message.append(f"● Price: <b>${token_info['price_usd']}</b>")
-                formatted_message.append(f"● Amount (owned): <b>{ui_amount:.6f}</b> {str(token_info['symbol']).upper()}\n")
-                            
+            token_amount = info.get('tokenAmount', {}).get('amount')
+            if int(token_amount) > 0:
+                ui_amount = info.get('tokenAmount', {}).get('uiAmount')
+                mint = info.get('mint')
+                token_info = self.get_token_info(mint)
+                if token_info: 
+                    response = requests.get('https://api.raydium.io/v2/main/price')
+                    response.raise_for_status()  # Check for HTTP errors
+                    price_list = response.json()
+                    sol_curr_price = price_list[self.sol_address]
+                    curr_price_of_token = price_list.get(mint, None)
+                    
+                    if(curr_price_of_token == None):
+                        curr_price_of_token = token_info['price_usd']
+                    
+                    price_of_owned_token = float(curr_price_of_token) * float(ui_amount)
+                    rounded_price_of_owned_token = round(price_of_owned_token, 6)
+                    
+                    qty_in_sol = rounded_price_of_owned_token / sol_curr_price
+                    total_owned_sol = total_owned_sol + qty_in_sol
+                    toatl_owned_sol_price = toatl_owned_sol_price + rounded_price_of_owned_token
+                    
+                    formatted_message.append(f"<b><a href='https://t.me/{constant.bot_name}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()} - 📈</a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
+                    formatted_message.append(f"<code>{mint}</code>")
+                    formatted_message.append(f"● Price: <b>${token_info['price_usd']}</b>")
+                    formatted_message.append(f"● Amount (owned): <b>{ui_amount:.6f}</b> {str(token_info['symbol']).upper()}\n")
+                                
         res = self.getBalance(retrieved_user.publicKey)
         formatted_message.insert(1, f"Balance: <b>{res.get('sol_bal')} SOL (${res.get('usd_bal')})</b>")
         formatted_message.insert(2, f"Positions: <b>{total_owned_sol:.6f} SOL (${toatl_owned_sol_price:.2f})</b>\n")
