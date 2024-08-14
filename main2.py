@@ -88,7 +88,6 @@ class Bot():
 
         app.add_handler(CommandHandler('sell', self.sell_command))
         app.add_handler(CommandHandler('position', self.position_command))
-        app.add_handler(CommandHandler('main', self.main_command))
         app.add_handler(CommandHandler('start', self.start_command))
         app.add_handler(CallbackQueryHandler(self.button_click_callback))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
@@ -112,9 +111,6 @@ class Bot():
         chat_id = update.message.chat.id
         await self.listToken(chat_id, context)
 
-    async def main_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        reply_markup = InlineKeyboardMarkup(main_keyboard)
-        await update.message.reply_text('Hello! This is Crypto Bot.', reply_markup=reply_markup)
 
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -124,23 +120,24 @@ class Bot():
         message_id = update.message.message_id
         
         parts = text.split()
-        cb_type = parts[1].split('-')[0]
-        token_to_sell = parts[1].split('-')[1]
-        
-        print("Type:", cb_type)
-        print("Token Code:", token_to_sell)
-        if(cb_type == "sellToken"):
+        if(parts and not len(parts) == 1):
+            cb_type = parts[1].split('-')[0]
+            token_to_sell = parts[1].split('-')[1]
             
-            token_info = self.get_token_info(token_to_sell)
-            # print('token_info>>>>>>>>>>>>>>>>>', token_info, "public_key>>>>>>>>>", public_key)
-            if token_info:
-                await self.sell_swap_menu(chat_id, token_info, token_to_sell, context, message_id=update.message.message_id, callBackType="sell_token")
-            else:
-                await self.send_message(chat_id, f"Token information not found for address: {token_to_sell}", context)
-        
-        
-        await self.delete_message(chat_id, message_id , context)
-        # await update.message.reply_text('Hello! This is Crypto Bot.', reply_markup=reply_markup)
+            # print("Type:", cb_type)
+            # print("Token Code:", token_to_sell)
+            if(cb_type == "sellToken"):
+                token_info = self.get_token_info(token_to_sell)
+                if token_info:
+                    await self.sell_swap_menu(chat_id, token_info, token_to_sell, context, message_id=update.message.message_id, callBackType="sell_token")
+                else:
+                    await self.send_message(chat_id, f"Token information not found for address: {token_to_sell}", context)
+            
+            await self.delete_message(chat_id, message_id , context)
+            # await update.message.reply_text('Hello! This is Crypto Bot.', reply_markup=reply_markup)
+        else:
+            reply_markup = InlineKeyboardMarkup(main_keyboard)
+            await update.message.reply_text('Hello! This is Crypto Bot.', reply_markup=reply_markup)
 
 
 
