@@ -156,11 +156,13 @@ class Bot():
     async def button_click_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         chat_id = query.from_user.id
+        message_id = query.message.message_id
         await query.answer()
         callback_data = query.data
         tmpCallBackType = context.chat_data.get("callbackType", '') or ""
         tmpPubkey = context.chat_data.get("pubKey", '') or ""
 
+        print("tmpCallBackType in btn click callback----",context.chat_data)
 
         if callback_data == 'wallet':
             tmp_menu = await self.getSubmenuKeyboard(chat_id)
@@ -242,6 +244,70 @@ class Bot():
         elif callback_data == 'sell_x_percent':
             print('sell_x_percent',tmpCallBackType)
             await self.send_message(chat_id, f"Please enter the percentage you want to sell:", context, None, tmpCallBackType, tmpPubkey)
+        elif callback_data == 'toggle_swap_mode':
+            context.chat_data["callbackType"] = 'buy_token'
+            print('toggle_swap_mode',tmpCallBackType)
+            markup = query.message.reply_markup
+            updated_markup = self.getUpdatedBuyKeyboard(markup.inline_keyboard, True)
+            # print("updatedMessage",updated_markup)
+            await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
+        elif callback_data == 'toggle_limit_mode':
+            print('toggle_limit_mode',tmpCallBackType)
+            context.chat_data["callbackType"] = 'buy_with_limit'
+            markup = query.message.reply_markup
+            updated_markup = self.getUpdatedBuyKeyboard(markup.inline_keyboard, False)
+            await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
+        elif callback_data == 'trigger_at':
+            context.chat_data["callbackType"] = 'trigger_at'
+            tmpCallBackType = context.chat_data.get("callbackType", '') or ""
+            print('trigger_at',tmpCallBackType)
+            await self.send_message(chat_id, f"Please enter the percentage you want to trigger at:", context, None, tmpCallBackType, tmpPubkey)
+        elif callback_data == 'create_order':
+            print('create_order',tmpCallBackType)
+            limitAmount = context.chat_data.get("limitAmount", '') or 0
+            triggerAt = context.chat_data.get("triggerAt", '') or 0
+            await self.buyWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, limitAmount, triggerAt)
+
+
+
+    def getUpdatedBuyKeyboard(self, keyboard, toggleSwap):
+        new_buttons = []
+        for row in keyboard:
+            new_row = []
+            for button in row:
+                if button.callback_data == 'toggle_swap_mode' or button.callback_data == 'toggle_limit_mode':                
+                    if button.callback_data == 'toggle_swap_mode':
+                        new_row.append(InlineKeyboardButton(
+                            text='Swap' + (' ✅' if toggleSwap else ''),
+                            callback_data='toggle_swap_mode'
+                        ))
+                    if button.callback_data == 'toggle_limit_mode':
+                        new_row.append(InlineKeyboardButton(
+                            text='Limit' + (' ✅' if not(toggleSwap) else ''),
+                            callback_data='toggle_limit_mode'
+                        ))
+                else:
+                    # Keep other buttons unchanged
+                    if not(button.callback_data == 'trigger_at' or button.callback_data == 'create_order'):
+                        new_row.append(button)
+            new_buttons.append(new_row)
+        
+        if not(toggleSwap):
+            trigger_btn = [InlineKeyboardButton(
+                text='Trigger at:',
+                callback_data='trigger_at'
+            )]
+            
+            execute_btn = [InlineKeyboardButton(
+                text='CREATE ORDER',
+                callback_data='create_order'
+            )]
+            new_buttons.append(trigger_btn)
+            new_buttons.append(execute_btn)
+            
+        updated_markup = InlineKeyboardMarkup(new_buttons) 
+        return updated_markup
+
 
 
     def get_token_info(self, token_address):
@@ -281,15 +347,16 @@ class Bot():
         chat_id = update.message.chat.id
         tmpCallBackType = context.chat_data.get("callbackType", '') or ""
         tmpPubkey = context.chat_data.get("pubKey", '') or ""
+        print('-handleMessage: tmpCallBackType',tmpCallBackType)
         
         if chat_type == "private":
             # Capture any word over 32 characters
             token_addresses = re.findall(r'\b\w{33,}\b', text)
-            print('token_addresses-', token_addresses)
+            # print('token_addresses-', token_addresses)
             
             # Regex to capture Solana public keys
             public_key_match = re.findall(r'\b[A-HJ-NP-Za-km-z1-9]{44}\b', text)
-            print('public_key_match-', public_key_match)
+            # print('public_key_match-', public_key_match)
 
             if public_key_match:
                 public_key = public_key_match[0]
@@ -315,7 +382,7 @@ class Bot():
             elif re.match(r'^\d*\.?\d+$', text):
                 inputAmount = float(text)
 
-                if(not(tmpCallBackType == "buy_token" or tmpCallBackType == "transfer_token" or tmpCallBackType == "sell_token")):
+                if(not(tmpCallBackType == "buy_token" or tmpCallBackType == "transfer_token" or tmpCallBackType == "sell_token" or tmpCallBackType == "buy_with_limit" or tmpCallBackType == "trigger_at")):
                     await self.send_message(chat_id, f"You have not selected transaction type for the transaction" , context, None, tmpCallBackType, tmpPubkey)
                     return
                 
@@ -326,8 +393,17 @@ class Bot():
                 if(tmpPubkey is not None and tmpCallBackType == "sell_token"):
                     await self.sellToken(chat_id, context, tmpPubkey, inputAmount)
                     return
+                
+                if(tmpPubkey is not None and tmpCallBackType == "trigger_at"):
+                    context.chat_data["triggerAt"] = inputAmount #  for percentage input amount should be calculated in usd
+                    return
+                
+                if(tmpPubkey is not None and tmpCallBackType == "buy_with_limit"):
+                    context.chat_data["limitAmount"] = inputAmount
+                    # await self.buyWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, inputAmount)
+                    return
 
-                if(tmpPubkey is not None):
+                if(tmpPubkey is not None and tmpCallBackType == "buy_token"):
                     await self.buyToken(chat_id, context, tmpPubkey, tmpCallBackType, inputAmount)
                 else:
                     print('---else',context)
@@ -348,7 +424,7 @@ class Bot():
 
 
     async def send_message(self, chat_id, message, context: ContextTypes.DEFAULT_TYPE, reply_keyboard=None, callbackType="", userFilledPubkey="", parseMode="", message_id=None):
-        print('-sendmsg chatId', chat_id,)
+        print('-sendmsg chatId', chat_id, callbackType)
         tmpParseMode = parseMode or 'MarkdownV2'
 
         context.chat_data["callbackType"] = callbackType
@@ -356,9 +432,12 @@ class Bot():
         return await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_keyboard, disable_web_page_preview=True, parse_mode=tmpParseMode, reply_to_message_id = message_id)
 
 
-    async def edit_message_text(self, chat_id, text, message_id, context: ContextTypes.DEFAULT_TYPE,  parseMode=""):
-        tmpParseMode = parseMode or 'MarkdownV2'
-        return await context.bot.edit_message_text(text=text,chat_id = chat_id, disable_web_page_preview=True, message_id=message_id, parse_mode=tmpParseMode)
+    async def edit_message_text(self, chat_id, text, message_id, context: ContextTypes.DEFAULT_TYPE,  parseMode="", reply_keyboard=None):
+        try:
+            tmpParseMode = parseMode or 'MarkdownV2'
+            return await context.bot.edit_message_text(text=text,chat_id = chat_id, disable_web_page_preview=True, message_id=message_id, parse_mode=tmpParseMode, reply_markup=reply_keyboard)
+        except Exception as err:
+            print(f"Other error occurred: {err}")
 
 
     async def delete_message(self, chat_id, message_id, context: ContextTypes.DEFAULT_TYPE):
@@ -366,7 +445,8 @@ class Bot():
 
 
     async def buy_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = ""):
-        buy_button_text = "----BUY ✅----" # if buy_flag else "BUY"
+        buy_button_text = "Swap ✅" # if buy_flag else "BUY"
+        limit_button_text = "Limit" # if buy_flag else "BUY"
 
         buy_0_1_sol_text = "0.1 SOL" # if selected_option[chat_id]["buy"] == "0.1_sol" else "0.1 SOL"
         buy_0_5_sol_text = "0.5 SOL" # if selected_option[chat_id]["buy"] == "0.5_sol" else "0.5 SOL"
@@ -382,7 +462,8 @@ class Bot():
         
         reply_keyboard = InlineKeyboardMarkup([
             [
-                {"text": buy_button_text, "callback_data": "toggle_buy_mode"}
+                {"text": buy_button_text, "callback_data": "toggle_swap_mode"},
+                {"text": limit_button_text, "callback_data": "toggle_limit_mode"}
             ],
             [
                 {"text": buy_0_1_sol_text, "callback_data": "buy_0.1_sol"},
@@ -390,7 +471,7 @@ class Bot():
             ],
             [
                 {"text": buy_1_sol_text, "callback_data": "buy_1_sol"},
-                {"text": "Buy with X SOL", "callback_data": "buy_x_sol"}
+                {"text": "Buy with X SOL ✏️", "callback_data": "buy_x_sol"}
             ],
         ])
 
@@ -404,7 +485,7 @@ class Bot():
         sell_25_text = "Sell 25%" #if selected_option[chat_id]["sell"] == "25" else "Sell 25%"
         sell_50_text = "Sell 50%" #if selected_option[chat_id]["sell"] == "50" else "Sell 50%"
         sell_100_text = "Sell 100%" #if selected_option[chat_id]["sell"] == "100" else "Sell 100%"
-        sell_x_text = "Sell X %" #if selected_option[chat_id]["sell"] == "100" else "Sell 100%"
+        sell_x_text = "Sell X % ✏️" #if selected_option[chat_id]["sell"] == "100" else "Sell 100%"
         
         
         retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
@@ -455,6 +536,58 @@ class Bot():
     def decode_key(self, encoded_key: str) -> bytes:
         return base64.b64decode(encoded_key)
     
+    
+    
+    async def buyWithLimit(self, chat_id, context, tmpPubkey, tmpCallBackType, inputAmount, triggerAt):
+        # --- buy with limit func 915114249 2orqxJdCqDLdya8AwNHti4LUt16ysojKW2UMKuYZpump buy_with_limit 0.0366262
+        print('--- buy with limit func---', chat_id, tmpPubkey, tmpCallBackType, inputAmount, triggerAt)
+        if not(inputAmount):
+            await self.send_message(chat_id, f"__You need to enter amount to proceed__", context, None, tmpCallBackType, tmpPubkey)
+            return
+        if not(triggerAt):
+            await self.send_message(chat_id, f"__You need to enter trigger price to proceed__", context, None, tmpCallBackType, tmpPubkey)
+            return
+        
+        await self.send_message(chat_id, f"__OK__", context)
+        return
+        amount = int(inputAmount * self.one_sol_in_lamports)
+        retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
+        if(retrieved_user):
+            sender = Keypair.from_base58_string(retrieved_user.keypair)
+            if(tmpCallBackType == "transfer_token"):
+                receiver =   Pubkey.from_string(tmpPubkey)
+                txn = self.helper.transactionFun(sender, receiver, amount)
+                msg = await self.send_message(chat_id, f"__Transferring SOL__", context)
+                # await asyncio.sleep(3)
+                if(txn):
+                    print('txn:-',txn)
+                    message = []
+                    message.append(f"✅<b><a href='https://solscan.io/tx/{txn}?cluster=devnet'>SOL</a></b> transferred Successfully\n")
+                    message.append(f"<b>Sender</b>: <i><code>{sender.pubkey()}</code></i>\n")
+                    message.append(f"<b>Receiver</b>: <i><code>{receiver}</code></i>\n")
+                    message.append(f"Amount: <b>{inputAmount} SOL</b>\n")
+                    formatted_message = "\n".join(message)
+                    await self.edit_message_text(text=formatted_message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
+                else:
+                    await self.send_message(chat_id, f"🔴 Insufficient Balance", context)
+            elif(tmpCallBackType == "buy_token"):
+                msg = await self.send_message(chat_id, f"__Processing swap__", context)
+
+                # tmpJupiterHel = self.jupiterHelper.initializeJup(sender)
+                self.solanaSwapModule.initializeTracker(sender)
+                slippage = 100  # 1% slippage in basis points
+                jup_txn_id = await self.solanaSwapModule.execute_swap(tmpPubkey, inputAmount, slippage, sender, constant.input_mint)
+                # jup_txn_id = await self.solanaSwapModule.execute_swap(tmpPubkey, inputAmount, slippage, sender, constant.input_mint)
+                # jup_txn_id = await self.jupiterHelper.execute_swap(tmpPubkey, amount, slippage, sender)
+                if not jup_txn_id:
+                    print('txn failed>>>>>>')
+                    await self.edit_message_text(text=f"There is some technical issue while buying the token", chat_id = chat_id, message_id = msg.message_id, context = context)
+                else:
+                    await self.edit_message_text(text=f"_🟢 Buy Success\\!_ [View on Solscan](https://solscan.io/tx/{jup_txn_id})", chat_id = chat_id, message_id = msg.message_id, context = context)
+            
+        else:
+            await self.send_message(chat_id, f"You don\'t have any wallet to send SOL", context)
+
     
     async def buyToken(self, chat_id, context, tmpPubkey, tmpCallBackType, inputAmount):
         amount = int(inputAmount * self.one_sol_in_lamports)
