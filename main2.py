@@ -89,6 +89,7 @@ class Bot():
         app.add_handler(CommandHandler('sell', self.sell_command))
         app.add_handler(CommandHandler('position', self.position_command))
         app.add_handler(CommandHandler('start', self.start_command))
+        app.add_handler(CommandHandler('orders', self.order_command))
         app.add_handler(CallbackQueryHandler(self.button_click_callback))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
         
@@ -112,6 +113,9 @@ class Bot():
         await self.listToken(chat_id, context)
 
 
+    async def order_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        chat_id = update.message.chat.id
+        await self.listOrders(chat_id, context)
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # reply_markup = InlineKeyboardMarkup(main_keyboard)
@@ -526,7 +530,7 @@ class Bot():
 
         ])
 
-        await self.send_message(chat_id, token_info_message, context, reply_keyboard,callbackType = callBackType,userFilledPubkey = token_address, message_id = message_id)
+        await self.send_message(chat_id, token_info_message, context, reply_keyboard,callbackType = callBackType,userFilledPubkey = token_address)
 
 
 
@@ -791,6 +795,74 @@ class Bot():
         
         await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
 
+
+    async def listOrders(self, chat_id, context):    
+
+        msg = await self.send_message(chat_id, f"_Fetching your orders\\.\\.\\._", context)
+        
+        retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
+        if(retrieved_user):
+            sender = Keypair.from_base58_string(retrieved_user.keypair)
+            self.jupiterHelper.initializeJup(sender)
+            orderList = await self.jupiterHelper.query_orders_history(retrieved_user.publicKey)
+            # tokens = orderList.value
+            
+            formatted_message = []
+            
+            message = "No order found for the token"
+            for order in orderList:   
+                account = order.get('account')
+                # print("account>>>>>>>>>>>>>>>>>>>", account)
+                # token_amount = info.get('tokenAmount', {}).get('amount')
+                token_mint = account["inputMint"]
+                orderType = "Sell "
+                sol_amount = float(int(account["oriOutAmount"]) / self.one_sol_in_lamports)
+                token_amount = account["oriInAmount"]
+                if (account["inputMint"]  == self.sol_address ):
+                    # print('order is buy type')
+                    # global token_mint
+                    token_mint = account["outputMint"]
+                    orderType = "Buy "
+                    sol_amount = float(int(account["oriInAmount"]) / self.one_sol_in_lamports)
+                    token_amount = account["oriOutAmount"]
+                    
+                # else:
+                #     print('order is sell type')
+
+
+                # ui_amount = info.get('tokenAmount', {}).get('uiAmount')
+                # mint = info.get('mint')
+                token_info = self.get_token_info(token_mint)
+                if token_info: 
+                    response = requests.get('https://api.raydium.io/v2/main/price')
+                    response.raise_for_status()  # Check for HTTP errors
+                    price_list = response.json()
+                    # sol_curr_price = price_list[self.sol_address]
+                    curr_price_of_token = price_list.get(token_mint, None)
+                    
+                    if(curr_price_of_token == None):
+                        curr_price_of_token = token_info['price_usd']
+                    
+                    tmp_decimal = self.jupiterHelper.get_token_decimal_info(token_mint)
+                    # print("tmp_decimal>>>>>>>>>>>>>>>>>", tmp_decimal)
+
+                    if(tmp_decimal):
+                        token_amount = float(int(token_amount)/pow(10, int(tmp_decimal)))
+                    
+                    formatted_message.append(f"{orderType} :  <b>{str(token_info['symbol']).upper()} 📈 </b> - <b><a href='https://t.me/{constant.bot_name}?start=sellToken-{token_mint}'>CANCEL</a></b> ")
+                    
+                    formatted_message.append(f"<code>{token_mint}</code>")
+                    formatted_message.append(f"● SOl: <b>{sol_amount:.6f}</b>")
+                    formatted_message.append(f"● Price(USD): <b>${token_info['price_usd']}</b>")
+                    formatted_message.append(f"● Trigger price: <b>${token_amount}</b>")
+                # print('token_mint>>>>>>>>>>>>', token_mint)
+
+            message = "\n".join(formatted_message)
+            
+            await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
+
+        else:
+            await self.send_message(chat_id, f"You don\'t have any wallet to view Order List", context, message_id = msg.message_id)
 
 
 
