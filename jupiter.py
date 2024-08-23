@@ -23,7 +23,8 @@ import constant
 
 class JupiterHelper():
     def __init__(
-        self
+        self,
+        keypair = None
     ):
         """Init API client."""
         super().__init__()
@@ -32,6 +33,19 @@ class JupiterHelper():
         self.solana_rpc_url = constant.clientURL
 
         self.async_client = AsyncClient(self.solana_rpc_url)
+
+        if(keypair):
+            Jupiter(
+                async_client=self.async_client,
+                keypair=keypair,
+                quote_api_url="https://quote-api.jup.ag/v6/quote?",
+                swap_api_url="https://quote-api.jup.ag/v6/swap",
+                open_order_api_url="https://jup.ag/api/limit/v1/createOrder",
+                cancel_orders_api_url="https://jup.ag/api/limit/v1/cancelOrders",
+                query_open_orders_api_url="https://jup.ag/api/limit/v1/openOrders?wallet=",
+                query_order_history_api_url="https://jup.ag/api/limit/v1/orderHistory",
+                query_trade_history_api_url="https://jup.ag/api/limit/v1/tradeHistory"
+            )
         
 
     def initializeJup(self, keypair):
@@ -193,14 +207,13 @@ class JupiterHelper():
                 response = requests.get(api_url)
                 response.raise_for_status()  # Check for HTTP errors
                 data = response.json()
-                print("data>>>>>>>>>>>>>>>", data)
                 if(data['decimals']):
                     return data['decimals']
                 else:
-                    return None
+                    raise Exception('I know Python!')
             except requests.exceptions.HTTPError as http_err:
                 print(f"HTTP error occurred: {http_err}")
-                return None
+                raise Exception('I know Python2!')
             except Exception as err:
                 print(f"Other error occurred: {err}")
-                return None
+                raise Exception('I know Python3!')

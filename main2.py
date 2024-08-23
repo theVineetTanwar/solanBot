@@ -137,6 +137,16 @@ class Bot():
                 else:
                     await self.send_message(chat_id, f"Token information not found for address: {token_to_sell}", context)
             
+            elif(cb_type == "cancelOrder"):
+                try:
+                    retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
+                    if(retrieved_user):
+                        sender = Keypair.from_base58_string(retrieved_user.keypair)
+                        tmpJupiterHel = JupiterHelper(sender)
+                        # tmpData = tmpJupiterHel.cancel_orders([token_to_sell], sender)
+                except Exception as err:
+                    tmpData = "error"
+                await self.send_message(chat_id, f"cancel order functionality in process:", context)
             await self.delete_message(chat_id, message_id , context)
             # await update.message.reply_text('Hello! This is Crypto Bot.', reply_markup=reply_markup)
         else:
@@ -302,7 +312,7 @@ class Bot():
                 if(tmpCallBackType == "transfer_token"):
                     await self.send_message(chat_id, f"Enter amount to proceed for token: \n_{public_key}_", context, None, tmpCallBackType, public_key)
                 
-                elif(tmpCallBackType == "buy_token"):                 
+                else:                 
                     token_address = token_addresses[0]
                     print('-address', token_address)
                     token_info = self.get_token_info(token_address)
@@ -311,9 +321,6 @@ class Bot():
                         await self.buy_swap_menu(chat_id, token_info, token_address, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = public_key)
                     else:
                         await self.send_message(chat_id, f"Token information not found for address: {token_address}", context)
-                else:
-                    await self.send_message(chat_id, f"You have not selected transaction type for the specified pubkey:\n"+public_key, context, None, "", "")
-                
 
 
             elif re.match(r'^\d*\.?\d+$', text):
@@ -427,7 +434,7 @@ class Bot():
         token_info_message = (
             f"Sell *{token_info['symbol']}* \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
             f"`{token_address}` _\\(Tap to copy\\)_ \n\n"
-            f"Balance: *${self.escape_dots(balance)} {token_info['symbol'].upper()}*\n"
+            f"Balance: *{self.escape_dots(balance)} {token_info['symbol'].upper()}*\n"
             f"Price: *${self.escape_dots(token_info['price_usd'])}*\n"
             f"Liquidity: *{self.escape_dots(locale.currency(token_info['liquidity_usd'], grouping=True))}*\n"
             f"FDV: *{self.escape_dots(locale.currency(token_info['fdv'], grouping=True))}*\n"
@@ -481,7 +488,8 @@ class Bot():
                     await self.edit_message_text(text=formatted_message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
                 else:
                     await self.send_message(chat_id, f"🔴 Insufficient Balance", context)
-            elif(tmpCallBackType == "buy_token"):
+            # elif(tmpCallBackType == "buy_token"):
+            else:
                 msg = await self.send_message(chat_id, f"__Processing swap__", context)
 
                 # tmpJupiterHel = self.jupiterHelper.initializeJup(sender)
@@ -533,7 +541,7 @@ class Bot():
                 
                     qty_in_sol = rounded_price_of_owned_token / sol_curr_price
                     
-                    formatted_message.append(f"<b><a href='https://t.me/{constant.bot_name}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()} ➖ </a></b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
+                    formatted_message.append(f"<b><a href='https://t.me/{constant.bot_name}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()}</a> ➖</b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
     
                             
         # print('total_owned_sol',total_owned_sol,toatl_owned_sol_price)
@@ -679,6 +687,7 @@ class Bot():
             message = "No order found for the token"
             for order in orderList:   
                 account = order.get('account')
+                token_public_key = order.get('publicKey')
                 # print("account>>>>>>>>>>>>>>>>>>>", account)
                 # token_amount = info.get('tokenAmount', {}).get('amount')
                 token_mint = account["inputMint"]
@@ -716,7 +725,7 @@ class Bot():
                     if(tmp_decimal):
                         token_amount = float(int(token_amount)/pow(10, int(tmp_decimal)))
                     
-                    formatted_message.append(f"{orderType} :  <b>{str(token_info['symbol']).upper()} 📈 </b> - <b><a href='https://t.me/{constant.bot_name}?start=sellToken-{token_mint}'>CANCEL</a></b> ")
+                    formatted_message.append(f"{orderType} :  <b>{str(token_info['symbol']).upper()} 📈 </b> - <b><a href='https://t.me/{constant.bot_name}?start=cancelOrder-{token_public_key}'>CANCEL</a></b> ")
                     
                     formatted_message.append(f"<code>{token_mint}</code>")
                     formatted_message.append(f"● SOl: <b>{sol_amount:.6f}</b>")
