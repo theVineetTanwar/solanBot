@@ -390,13 +390,11 @@ class Bot():
             public_key_match = re.findall(r'\b[A-HJ-NP-Za-km-z1-9]{44}\b', text)
             # print('public_key_match-', public_key_match)
             
-    
             cb_data = tmpCallBackType.split(':')
             sub_callbackType = None
             if (len(cb_data) > 1):
                tmpCallBackType = cb_data[0]
                sub_callbackType = cb_data[1]
-            
             
             print('-handleMessage: tmpCallBackType',tmpCallBackType)
             print('-handleMessage: sub_callbackType',sub_callbackType)
@@ -434,13 +432,11 @@ class Bot():
                     await self.sellToken(chat_id, context, tmpPubkey, inputAmount)
                     return
                 
-                
                 if(tmpPubkey is not None and tmpCallBackType == "buy_with_limit"):
                     if(sub_callbackType == "trigger_at"):
-                        context.chat_data["triggerAt"] = inputAmount #  for percentage input amount should be calculated in usd
+                        context.chat_data["triggerAt"] = inputAmount
                     else:
                         context.chat_data["limitAmount"] = inputAmount
-                    # await self.buyWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, inputAmount)
                     return
 
                 if(tmpPubkey is not None and tmpCallBackType == "buy_token"):
@@ -449,7 +445,6 @@ class Bot():
                     print('---else',context)
                     await self.send_message(chat_id, f"Enter receiver\\'s public key", context)
             elif re.match(r'^\d+(\.\d+)?%$', text):
-                # percentage = float(text.strip('%'))
                 if(not(tmpCallBackType == "buy_with_limit")):
                     await self.send_message(chat_id, f"You have not selected transaction type for the transaction" , context, None, tmpCallBackType, tmpPubkey)
                     return
@@ -462,7 +457,6 @@ class Bot():
                 if(tmpPubkey is not None and tmpCallBackType == "buy_with_limit" and sub_callbackType == "trigger_at"):
                     context.chat_data["triggerAt"] = text 
                     return
-                # await self.send_message(chat_id, f"Percentage set to {self.escape_dots(percentage)}\\% SOL", context)
             else:
                 print('private chat replyback')
                 msg = await self.send_message(chat_id, response, context, message_id=update.message.message_id)
@@ -598,53 +592,53 @@ class Bot():
             await self.send_message(chat_id, f"__You need to enter trigger price to proceed__", context, None, tmpCallBackType, tmpPubkey)
             return
         
-        # return
         retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
         if(retrieved_user):
+            sender = Keypair.from_base58_string(retrieved_user.keypair)
             msg = await self.send_message(chat_id, f"__Placing order__", context)
             tmpJupiterHel = JupiterHelper(sender)
 
-            sender = Keypair.from_base58_string(retrieved_user.keypair)
             input_mint = constant.input_mint
             output_mint = tmpPubkey
             in_amount = int(inputAmount * self.one_sol_in_lamports)
             
-            output_token_decimal = await tmpJupiterHel.get_token_decimal_info(tmpPubkey)
+            output_token_decimal = tmpJupiterHel.get_token_decimal_info(tmpPubkey)
             if not output_token_decimal:
                 print('output token decimals not found >>>>>>')
                 await self.edit_message_text(text=f"Couldn't create order for this token", chat_id = chat_id, message_id = msg.message_id, context = context)
                 
                 
             triggerPercent = None
-            if (re.match(r'^\d+(\.\d+)?%$', triggerAt)):
+            if (re.match(r'^\d+(\.\d+)?%$', str(triggerAt))):
                 triggerPercent = float(triggerAt.strip('%'))
             
+            print ('triggerPercent',triggerPercent)
             
             token_info = self.get_token_info(tmpPubkey) # need to find another way to get token Symbol
             if token_info: 
                 response = requests.get('https://api.raydium.io/v2/main/price')
                 response.raise_for_status()  # Check for HTTP errors
                 price_list = response.json()
-                # sol_curr_price = price_list[self.sol_address]
                 curr_price_of_token = price_list.get(tmpPubkey, None)
                 
                 if(curr_price_of_token == None):
                     curr_price_of_token = token_info['price_usd']
                     
-                # 1 tooker = 22372 usd
-                # than how many tooker in 21222 usd?????
-                #  1/22373* 21222
                     
                 if(triggerPercent):
-                    triggerAt = curr_price_of_token * (1 + triggerAt / 100) # getting trigger price from percent
+                    triggerAt = float(curr_price_of_token) * (1 + float(triggerPercent) / 100) # getting trigger price from percent
                     
-                print('triggerAt-----------------',triggerAt)
+                print('curr_price_of_token-----------------',f"{curr_price_of_token:.8f}")
+                print('triggerAt-----------------',f"{triggerAt:.8f}")
 
                 no_of_tokens = triggerAt / curr_price_of_token # getting number of tokens can be bought from with given price (here:- triggerAt is price in usd)
-            
-            
-                out_amount = int(no_of_tokens * output_token_decimal)
-                return
+                out_amount = int(no_of_tokens * (10 ** output_token_decimal)) 
+                
+                print('no_of_tokens-----------------',no_of_tokens)
+                print('out_amount-----------------',out_amount)
+                print ('input_mint, output_mint, in_amount, out_amount, sender',input_mint, output_mint, in_amount, out_amount)
+
+                # return
                 jup_txn_id = await tmpJupiterHel.create_order(input_mint, output_mint, in_amount, out_amount, sender) # need to send slippage and expiry too
     
                 if not jup_txn_id:
