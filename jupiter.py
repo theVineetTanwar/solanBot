@@ -213,7 +213,4 @@ class JupiterHelper():
                     raise Exception('I know Python!')
             except requests.exceptions.HTTPError as http_err:
                 print(f"HTTP error occurred: {http_err}")
-                raise Exception('I know Python2!')
-            except Exception as err:
-                print(f"Other error occurred: {err}")
-                raise Exception('I know Python3!')
+                return None
