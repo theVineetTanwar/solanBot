@@ -144,9 +144,17 @@ class Bot():
                         sender = Keypair.from_base58_string(retrieved_user.keypair)
                         tmpJupiterHel = JupiterHelper(sender)
                         # tmpData = tmpJupiterHel.cancel_orders([token_to_sell], sender)
+                        txn_id = await tmpJupiterHel.cancel_orders([token_to_sell], sender)
+                        
+                        if not txn_id:
+                            await self.send_message(message=f"There is some technical issue while cancelling order", chat_id = chat_id, context = context)
+                        else:
+                            await self.send_message(message=f"_🟢 Order cancelled succussfully\\!_ [View on Solscan](https://solscan.io/tx/{txn_id})", chat_id = chat_id,  context = context)
+                        
+
                 except Exception as err:
-                    tmpData = "error"
-                await self.send_message(chat_id, f"cancel order functionality in process:", context)
+                    print("error while cancelling order-----", err)
+                    await self.send_message(chat_id, f"Some technical issue while canceling order, Please try again:", context)
             await self.delete_message(chat_id, message_id , context)
             # await update.message.reply_text('Hello! This is Crypto Bot.', reply_markup=reply_markup)
         else:
@@ -684,7 +692,7 @@ class Bot():
             
             formatted_message = []
             
-            message = "No order found for the token"
+            message = "You have no active limit orders. Create a limit order from the Buy/Sell menu."
             for order in orderList:   
                 account = order.get('account')
                 token_public_key = order.get('publicKey')
@@ -733,7 +741,8 @@ class Bot():
                     formatted_message.append(f"● Trigger price: <b>${token_amount}</b>")
                 # print('token_mint>>>>>>>>>>>>', token_mint)
 
-            message = "\n".join(formatted_message)
+            if formatted_message:
+                message = "\n".join(formatted_message)
             
             await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
 

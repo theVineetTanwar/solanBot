@@ -35,7 +35,7 @@ class JupiterHelper():
         self.async_client = AsyncClient(self.solana_rpc_url)
 
         if(keypair):
-            Jupiter(
+            self.jupiter = Jupiter(
                 async_client=self.async_client,
                 keypair=keypair,
                 quote_api_url="https://quote-api.jup.ag/v6/quote?",
@@ -179,7 +179,7 @@ class JupiterHelper():
                 print(f"UnsupportedProtocol error: {e}")
                 return ""
             except Exception as e:
-                print(f"Unexpected error during swap: {e}")
+                print(f"Unexpected error during cancelling order: {e}")
                 return ""
 
         try:
@@ -189,11 +189,10 @@ class JupiterHelper():
             opts = TxOpts(skip_preflight=False, preflight_commitment=Processed)
             result = await self.async_client.send_raw_transaction(txn=bytes(signed_txn), opts=opts)
             transaction_id = json.loads(result.to_json())['result']
-            print(f"Transaction sent: https://solscan.io/tx/{transaction_id}")
             return transaction_id
         except Exception as e:
             print(f"Error sending transaction: {e}")
-            return ""
+            raise
 
 
 
