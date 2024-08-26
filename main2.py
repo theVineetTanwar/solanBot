@@ -914,7 +914,7 @@ class Bot():
                     formatted_message.append(f"<code>{token_mint}</code>")
                     formatted_message.append(f"● SOl: <b>{sol_amount:.6f}</b>")
                     formatted_message.append(f"● Price(USD): <b>${token_info['price_usd']}</b>")
-                    formatted_message.append(f"● Trigger price: <b>${token_amount}</b>")
+                    formatted_message.append(f"● Trigger price: <b>{str(token_info['symbol']).upper()}  {  token_amount}</b>\n\n")
                 # print('token_mint>>>>>>>>>>>>', token_mint)
 
             if formatted_message:
