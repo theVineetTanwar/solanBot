@@ -6,6 +6,8 @@ import base64
 import json
 import math  
 import locale
+import time
+import datetime
 
 from requests.auth import HTTPDigestAuth
 from typing import Final
@@ -293,15 +295,22 @@ class Bot():
             context.chat_data["callbackType"] = 'buy_with_limit:trigger_at'
             tmpCallBackType = context.chat_data.get("callbackType", '') or ""
             print('trigger_at',tmpCallBackType)
-            await self.send_message(chat_id, f"Please enter the percentage you want to trigger at:", context, None, tmpCallBackType, tmpPubkey)
+            await self.send_message(chat_id, f"Enter the trigger price of your limit buy order. Valid options are % change (e.g. -5% or 5%) or a specific price.", context, None, tmpCallBackType, tmpPubkey, parseMode=ParseMode.HTML)
+        elif callback_data == 'expire_at':
+            context.chat_data["callbackType"] = 'buy_with_limit:expire_at'
+            tmpCallBackType = context.chat_data.get("callbackType", '') or ""
+            print('expire_at',tmpCallBackType)
+            await self.send_message(chat_id, f"Enter the expiry of your limit buy order. Valid options are s (seconds), m (minutes), h (hours), and d (days). E.g. 30m or 2h", context, None, tmpCallBackType, tmpPubkey, parseMode=ParseMode.HTML)
         elif callback_data == 'create_order':
             print('create_order',tmpCallBackType)
             limitAmount = context.chat_data.get("limitAmount", '') or 0
             triggerAt = context.chat_data.get("triggerAt", '') or 0
-            await self.buyWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, limitAmount, triggerAt)
+            expireAt = context.chat_data.get("expireAt", '') or 0
+            # await self.buyWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, limitAmount, triggerAt, expireAt)
+            await self.buyWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, 0.007, "5%", expireAt)
 
 
-
+    # convert this to array of keys
     def getUpdatedBuyKeyboard(self, keyboard, toggleSwap):
         new_buttons = []
         for row in keyboard:
@@ -320,7 +329,7 @@ class Bot():
                         ))
                 else:
                     # Keep other buttons unchanged
-                    if not(button.callback_data == 'trigger_at' or button.callback_data == 'create_order'):
+                    if not(button.callback_data == 'trigger_at' or button.callback_data == 'create_order' or button.callback_data == 'expire_btn'):
                         new_row.append(button)
             new_buttons.append(new_row)
         
@@ -329,14 +338,18 @@ class Bot():
                 text='Trigger at:',
                 callback_data='trigger_at'
             )]
-            
+            expire_btn = [InlineKeyboardButton(
+                text='Expiry:',
+                callback_data='expire_at'
+            )]
             execute_btn = [InlineKeyboardButton(
                 text='CREATE ORDER',
                 callback_data='create_order'
             )]
             new_buttons.append(trigger_btn)
+            new_buttons.append(expire_btn)
             new_buttons.append(execute_btn)
-            
+
         updated_markup = InlineKeyboardMarkup(new_buttons) 
         return updated_markup
 
@@ -416,7 +429,7 @@ class Bot():
                     else:
                         await self.send_message(chat_id, f"Token information not found for address: {token_address}", context)
 
-
+            # checks amount 
             elif re.match(r'^\d*\.?\d+$', text):
                 inputAmount = float(text)
 
@@ -444,6 +457,7 @@ class Bot():
                 else:
                     print('---else',context)
                     await self.send_message(chat_id, f"Enter receiver\\'s public key", context)
+            # checks Percentage
             elif re.match(r'^\d+(\.\d+)?%$', text):
                 if(not(tmpCallBackType == "buy_with_limit")):
                     await self.send_message(chat_id, f"You have not selected transaction type for the transaction" , context, None, tmpCallBackType, tmpPubkey)
@@ -456,6 +470,20 @@ class Bot():
                 print('percentage-', text)
                 if(tmpPubkey is not None and tmpCallBackType == "buy_with_limit" and sub_callbackType == "trigger_at"):
                     context.chat_data["triggerAt"] = text 
+                    return
+            # checks Expiry
+            elif re.match(r"(\d+)([smhd])", text):
+                if(not(tmpCallBackType == "buy_with_limit")):
+                    await self.send_message(chat_id, f"You have not selected transaction type for the transaction" , context, None, tmpCallBackType, tmpPubkey)
+                    return
+                
+                if(not(re.findall(r'\b[A-HJ-NP-Za-km-z1-9]{44}\b', tmpPubkey) )):
+                    await self.send_message(chat_id, f"No public key has been setup for txn" + tmpPubkey, context, None, tmpCallBackType, tmpPubkey)
+                    return
+                
+                print('expiry-', text)
+                if(tmpPubkey is not None and tmpCallBackType == "buy_with_limit" and sub_callbackType == "expire_at"):
+                    context.chat_data["expireAt"] = text 
                     return
             else:
                 print('private chat replyback')
@@ -582,9 +610,9 @@ class Bot():
         return base64.b64decode(encoded_key)
     
     
-    
-    async def buyWithLimit(self, chat_id, context, tmpPubkey, tmpCallBackType, inputAmount, triggerAt):
-        print('--- buy with limit func---', chat_id, tmpPubkey, tmpCallBackType, inputAmount, triggerAt)
+        
+    async def buyWithLimit(self, chat_id, context, tmpPubkey, tmpCallBackType, inputAmount, triggerAt, expireAt):
+        print('--- buy with limit func---', chat_id, tmpPubkey, tmpCallBackType, inputAmount, triggerAt, expireAt)
         if not(inputAmount):
             await self.send_message(chat_id, f"__You need to enter amount to proceed__", context, None, tmpCallBackType, tmpPubkey)
             return
@@ -592,63 +620,89 @@ class Bot():
             await self.send_message(chat_id, f"__You need to enter trigger price to proceed__", context, None, tmpCallBackType, tmpPubkey)
             return
         
-        retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
-        if(retrieved_user):
-            sender = Keypair.from_base58_string(retrieved_user.keypair)
-            msg = await self.send_message(chat_id, f"__Placing order__", context)
-            tmpJupiterHel = JupiterHelper(sender)
-
-            input_mint = constant.input_mint
-            output_mint = tmpPubkey
-            in_amount = int(inputAmount * self.one_sol_in_lamports)
+        try:
             
-            output_token_decimal = tmpJupiterHel.get_token_decimal_info(tmpPubkey)
-            if not output_token_decimal:
-                print('output token decimals not found >>>>>>')
-                await self.edit_message_text(text=f"Couldn't create order for this token", chat_id = chat_id, message_id = msg.message_id, context = context)
-                
-                
-            triggerPercent = None
-            if (re.match(r'^\d+(\.\d+)?%$', str(triggerAt))):
-                triggerPercent = float(triggerAt.strip('%'))
-            
-            print ('triggerPercent',triggerPercent)
-            
-            token_info = self.get_token_info(tmpPubkey) # need to find another way to get token Symbol
-            if token_info: 
-                response = requests.get('https://api.raydium.io/v2/main/price')
-                response.raise_for_status()  # Check for HTTP errors
-                price_list = response.json()
-                curr_price_of_token = price_list.get(tmpPubkey, None)
-                
-                if(curr_price_of_token == None):
-                    curr_price_of_token = token_info['price_usd']
-                    
-                    
-                if(triggerPercent):
-                    triggerAt = float(curr_price_of_token) * (1 + float(triggerPercent) / 100) # getting trigger price from percent
-                    
-                print('curr_price_of_token-----------------',f"{curr_price_of_token:.8f}")
-                print('triggerAt-----------------',f"{triggerAt:.8f}")
-
-                no_of_tokens = triggerAt / curr_price_of_token # getting number of tokens can be bought from with given price (here:- triggerAt is price in usd)
-                out_amount = int(no_of_tokens * (10 ** output_token_decimal)) 
-                
-                print('no_of_tokens-----------------',no_of_tokens)
-                print('out_amount-----------------',out_amount)
-                print ('input_mint, output_mint, in_amount, out_amount, sender',input_mint, output_mint, in_amount, out_amount)
-
-                # return
-                jup_txn_id = await tmpJupiterHel.create_order(input_mint, output_mint, in_amount, out_amount, sender) # need to send slippage and expiry too
+            retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
+            if(retrieved_user):
+                sender = Keypair.from_base58_string(retrieved_user.keypair)
+                msg = await self.send_message(chat_id, f"_Placing order_\\.\\.\\.",  context, None, tmpCallBackType, tmpPubkey)
+                tmpJupiterHel = JupiterHelper(sender)
     
-                if not jup_txn_id:
-                    print('txn failed>>>>>>')
-                    await self.edit_message_text(text=f"There is some technical issue while creating order", chat_id = chat_id, message_id = msg.message_id, context = context)
-                else:
-                    await self.edit_message_text(text=f"_🟢 Order Placed\\!_ [View on Solscan](https://solscan.io/tx/{jup_txn_id})", chat_id = chat_id, message_id = msg.message_id, context = context)
+                input_mint = constant.input_mint
+                output_mint = tmpPubkey
+                in_amount = int(inputAmount * self.one_sol_in_lamports)
+                
+                output_token_decimal = tmpJupiterHel.get_token_decimal_info(tmpPubkey)
+                if not output_token_decimal:
+                    print('output token decimals not found >>>>>>')
+                    await self.edit_message_text(text=f"Couldn't create order for this token", chat_id = chat_id, message_id = msg.message_id, context = context)
+                    
+                    
+                triggerPercent = None
+                if (re.match(r'^\d+(\.\d+)?%$', str(triggerAt))):
+                    triggerPercent = float(triggerAt.strip('%'))
+                
+                print ('triggerPercent',triggerPercent)
+                
+                now = datetime.datetime.now()
+                one_day = now + datetime.timedelta(hours=24)
+                timestamp = int(time.mktime(one_day.timetuple())) # default set to one day
+                
+                if (expireAt):
+                    match = re.match(r"(\d+)([smhd])", expireAt)
+                    value, unit = match.groups()
+                    if(unit == "s"):
+                        t = now + datetime.timedelta(seconds=int(value))
+                    elif(unit == "m"):
+                        t = now + datetime.timedelta(minutes=int(value))
+                    elif(unit == "h"):
+                        t = now + datetime.timedelta(hours=int(value))
+                    elif(unit == "d"):
+                        t = now + datetime.timedelta(days=int(value))
+                        
+                    timestamp = int(time.mktime(t.timetuple()))
+                    print ('expiry ', int(value), unit)
+                    
+                    
+                print ('timestamp', timestamp)
+                                
+                token_info = self.get_token_info(tmpPubkey) # need to find another way to get token Symbol
+                if token_info: 
+                    response = requests.get('https://api.raydium.io/v2/main/price')
+                    response.raise_for_status()  # Check for HTTP errors
+                    price_list = response.json()
+                    curr_price_of_token = price_list.get(tmpPubkey, None)
+                    
+                    if(curr_price_of_token == None):
+                        curr_price_of_token = token_info['price_usd']
+                        
+                        
+                    if(triggerPercent):
+                        triggerAt = float(curr_price_of_token) * (1 + float(triggerPercent) / 100) # getting trigger price from percent
+                        
+                    print('curr_price_of_token-----------------',f"{curr_price_of_token:.8f}")
+                    print('triggerAt-----------------',f"{triggerAt:.8f}")
+    
+                    no_of_tokens = triggerAt / float(curr_price_of_token) # getting number of tokens can be bought from with given price (here:- triggerAt is price in usd)
+                    out_amount = int(no_of_tokens * (10 ** output_token_decimal)) 
+                    
+                    print('no_of_tokens-----------------',no_of_tokens)
+                    print('out_amount-----------------',out_amount)
+                    print ('input_mint, output_mint, in_amount, out_amount, sender',input_mint, output_mint, in_amount, out_amount)
+    
+                    jup_txn_id = await tmpJupiterHel.create_order(input_mint, output_mint, in_amount, out_amount, sender, timestamp) # need to send slippage too
         
-        else:
-            await self.send_message(chat_id, f"You don\'t have any wallet to create order", context)
+                    if not jup_txn_id:
+                        print('txn failed>>>>>>')
+                        await self.edit_message_text(text=f"There is some technical issue while creating order", chat_id = chat_id, message_id = msg.message_id, context = context)
+                    else:
+                        await self.edit_message_text(text=f"_🟢 Order Placed\\!_ [View on Solscan](https://solscan.io/tx/{jup_txn_id})", chat_id = chat_id, message_id = msg.message_id, context = context)
+            
+            else:
+                await self.send_message(chat_id, f"You don\'t have any wallet to create order", context)
+        except Exception as err:
+            print("Error while Buying Limit Order-----", err)
+            await self.send_message(chat_id, f"Buying Limit Order Failed\\.\\.\\.",  context, None, tmpCallBackType, tmpPubkey)
 
     
     async def buyToken(self, chat_id, context, tmpPubkey, tmpCallBackType, inputAmount):
