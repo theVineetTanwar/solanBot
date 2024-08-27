@@ -115,11 +115,11 @@ class JupiterHelper():
             except Exception as e:
                 print(f"Error checking transaction status: {e}")
 
-    async def create_order(self, input_mint, output_mint, in_amount, out_amount, sender):        
+    async def create_order(self, input_mint, output_mint, in_amount, out_amount, sender, timestamp = None):        
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                transaction_data = await self.jupiter.open_order(input_mint, output_mint, in_amount, out_amount)
+                transaction_data = await self.jupiter.open_order(input_mint, output_mint, in_amount, out_amount, timestamp)
                 print("transaction_data>>>>>>>>>>>>>>", transaction_data)
                 break
             except httpx.ReadTimeout as e:
@@ -153,9 +153,6 @@ class JupiterHelper():
             # trade_history = await self.jupiter.query_trades_history(wallet_address)
             # order_history = await self.jupiter.query_orders_history(wallet_address)
             open_history = await self.jupiter.query_open_orders(wallet_address)
-            # print('history>>>>>>>>>>>>>>>>>>>', trade_history)
-            # print('order_history>>>>>>>>>>>>>>>>>>>', order_history)
-            # print('open_history>>>>>>>>>>>>>>>>>>>', open_history)
             return open_history
         except Exception as e:
             print(f"Error sending transaction: {e}")
@@ -212,4 +209,7 @@ class JupiterHelper():
                     raise Exception('I know Python!')
             except requests.exceptions.HTTPError as http_err:
                 print(f"HTTP error occurred: {http_err}")
+                return None
+            except Exception as err:
+                print(f"Other error occurred: {err}")
                 return None
