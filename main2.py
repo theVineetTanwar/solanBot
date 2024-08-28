@@ -35,6 +35,7 @@ from decimal import Decimal
 from swap.solanaSwap import SolanaSwapModule
 import constant
 from userModel import UserModule , UserModel
+import datetime
 
 load_dotenv()
 
@@ -282,17 +283,18 @@ class Bot():
             context.chat_data["callbackType"] = 'buy_token'
             print('toggle_swap_mode',tmpCallBackType)
             markup = query.message.reply_markup
-            updated_markup = self.getUpdatedBuyKeyboard(markup.inline_keyboard, True)
+            updated_markup = self.getUpdatedBuyKeyboard(markup.inline_keyboard, context.chat_data, True)
             # print("updatedMessage",updated_markup)
             await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
         elif callback_data == 'toggle_limit_mode':
             print('toggle_limit_mode',tmpCallBackType)
             context.chat_data["callbackType"] = 'buy_with_limit'
             markup = query.message.reply_markup
-            updated_markup = self.getUpdatedBuyKeyboard(markup.inline_keyboard, False)
+            updated_markup = self.getUpdatedBuyKeyboard(markup.inline_keyboard, context.chat_data, False)
             await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
         elif callback_data == 'trigger_at':
             context.chat_data["callbackType"] = 'buy_with_limit:trigger_at'
+            context.chat_data["lastBuyMenuMsgId"] = message_id
             tmpCallBackType = context.chat_data.get("callbackType", '') or ""
             print('trigger_at',tmpCallBackType)
             await self.send_message(chat_id, f"Enter the trigger price of your limit buy order. Valid options are % change (e.g. -5% or 5%) or a specific price.", context, None, tmpCallBackType, tmpPubkey, parseMode=ParseMode.HTML)
@@ -310,8 +312,7 @@ class Bot():
             await self.buyWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, 0.007, "5%", expireAt)
 
 
-    # convert this to array of keys
-    def getUpdatedBuyKeyboard(self, keyboard, toggleSwap):
+    def getUpdatedBuyKeyboard(self, keyboard, chat_data, toggleSwap):
         new_buttons = []
         for row in keyboard:
             new_row = []
@@ -334,8 +335,11 @@ class Bot():
             new_buttons.append(new_row)
         
         if not(toggleSwap):
+            tmp_trigger_at = ""
+            if "triggerAt" in chat_data:
+                tmp_trigger_at = chat_data["triggerAt"]
             trigger_btn = [InlineKeyboardButton(
-                text='Trigger at:',
+                text='Trigger at:' + tmp_trigger_at,
                 callback_data='trigger_at'
             )]
             expire_btn = [InlineKeyboardButton(
@@ -423,7 +427,6 @@ class Bot():
                     token_address = token_addresses[0]
                     print('-address', token_address)
                     token_info = self.get_token_info(token_address)
-                    # print('token_info>>>>>>>>>>>>>>>>>', token_info, "public_key>>>>>>>>>", public_key)
                     if token_info:
                         await self.buy_swap_menu(chat_id, token_info, token_address, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = public_key)
                     else:
@@ -452,7 +455,7 @@ class Bot():
                         context.chat_data["limitAmount"] = inputAmount
                     return
 
-                if(tmpPubkey is not None and tmpCallBackType == "buy_token"):
+                if(tmpPubkey is not None and (tmpCallBackType == "buy_token" or tmpCallBackType == 'transfer_token')):
                     await self.buyToken(chat_id, context, tmpPubkey, tmpCallBackType, inputAmount)
                 else:
                     print('---else',context)
@@ -469,7 +472,15 @@ class Bot():
                 
                 print('percentage-', text)
                 if(tmpPubkey is not None and tmpCallBackType == "buy_with_limit" and sub_callbackType == "trigger_at"):
-                    context.chat_data["triggerAt"] = text 
+                    context.chat_data["triggerAt"] = text
+                    context.chat_data["callbackType"] = 'buy_token'
+                    tmp_pub_key = context.chat_data["pubKey"]
+                    token_info = self.get_token_info(tmp_pub_key)
+                    print('toggle_swap_mode',tmpCallBackType)
+
+                    await self.buy_swap_menu(chat_id, token_info, tmp_pub_key, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = tmp_pub_key, is_limit_order_menu = True, chat_data = context.chat_data) 
+
+                    
                     return
             # checks Expiry
             elif re.match(r"(\d+)([smhd])", text):
@@ -517,9 +528,15 @@ class Bot():
         return await context.bot.delete_message(chat_id = chat_id, message_id=message_id)
 
 
-    async def buy_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = ""):
-        buy_button_text = "Swap ✅" # if buy_flag else "BUY"
-        limit_button_text = "Limit" # if buy_flag else "BUY"
+    async def buy_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = "", is_limit_order_menu = None, chat_data = None):
+        print('bu       y_swap_menu>>>>>>>>>>>>>')
+        buy_button_text = "Swap ✅"
+        limit_button_text = "Limit" 
+
+        if is_limit_order_menu:
+            buy_button_text = "Swap " # if buy_flag else "BUY"
+            limit_button_text = "Limit ✅" 
+
 
         buy_0_1_sol_text = "0.1 SOL" # if selected_option[chat_id]["buy"] == "0.1_sol" else "0.1 SOL"
         buy_0_5_sol_text = "0.5 SOL" # if selected_option[chat_id]["buy"] == "0.5_sol" else "0.5 SOL"
@@ -533,7 +550,7 @@ class Bot():
             f"FDV: *{self.escape_dots(locale.currency(token_info['fdv'], grouping=True))}*\n"
         )
         
-        reply_keyboard = InlineKeyboardMarkup([
+        reply_keyboard = [
             [
                 {"text": buy_button_text, "callback_data": "toggle_swap_mode"},
                 {"text": limit_button_text, "callback_data": "toggle_limit_mode"}
@@ -546,9 +563,35 @@ class Bot():
                 {"text": buy_1_sol_text, "callback_data": "buy_1_sol"},
                 {"text": "Buy with X SOL ✏️", "callback_data": "buy_x_sol"}
             ],
-        ])
+        ]
 
-        await self.send_message(chat_id, token_info_message, context, reply_keyboard,callbackType = callBackType,userFilledPubkey = publicKey, message_id = message_id)
+        if (is_limit_order_menu and chat_data):
+            tmp_trigger_at = ""
+            menu_message_id = context.chat_data["lastBuyMenuMsgId"]
+            if menu_message_id:
+                await self.delete_message(chat_id, menu_message_id, context)
+           
+            if "triggerAt" in chat_data:
+                tmp_trigger_at = chat_data["triggerAt"]
+            
+            trigger_btn = [{
+                "text":'Trigger at:' + tmp_trigger_at,
+                "callback_data":'trigger_at'
+            }]
+            
+            execute_btn = [{
+                "text":'CREATE ORDER',
+                "callback_data":'create_order'
+            }]
+
+            
+            reply_keyboard.append(trigger_btn)
+            reply_keyboard.append(execute_btn)
+
+        reply_keyboard_Button = InlineKeyboardMarkup(reply_keyboard)
+            
+
+        await self.send_message(chat_id, token_info_message, context, reply_keyboard_Button,callbackType = callBackType,userFilledPubkey = publicKey, message_id = message_id, )
 
 
 
@@ -682,7 +725,6 @@ class Bot():
                         
                     print('curr_price_of_token-----------------',f"{curr_price_of_token:.8f}")
                     print('triggerAt-----------------',f"{triggerAt:.8f}")
-    
                     no_of_tokens = triggerAt / float(curr_price_of_token) # getting number of tokens can be bought from with given price (here:- triggerAt is price in usd)
                     out_amount = int(no_of_tokens * (10 ** output_token_decimal)) 
                     
@@ -932,6 +974,12 @@ class Bot():
                 orderType = "Sell "
                 sol_amount = float(int(account["oriOutAmount"]) / self.one_sol_in_lamports)
                 token_amount = account["oriInAmount"]
+                expiry_date = account["expiredAt"]
+                if not expiry_date:
+                    expiry_date = "Not setted"
+                else:
+                    expiry_date = datetime.datetime.fromtimestamp(int(expiry_date))
+                    
                 if (account["inputMint"]  == self.sol_address ):
                     # print('order is buy type')
                     # global token_mint
@@ -968,7 +1016,8 @@ class Bot():
                     formatted_message.append(f"<code>{token_mint}</code>")
                     formatted_message.append(f"● SOl: <b>{sol_amount:.6f}</b>")
                     formatted_message.append(f"● Price(USD): <b>${token_info['price_usd']}</b>")
-                    formatted_message.append(f"● Trigger price: <b>{str(token_info['symbol']).upper()}  {  token_amount}</b>\n\n")
+                    formatted_message.append(f"● Trigger price: <b>{str(token_info['symbol']).upper()}  {  token_amount}</b>")
+                    formatted_message.append(f"● Expires: <b>{expiry_date}</b>\n\n")
                 # print('token_mint>>>>>>>>>>>>', token_mint)
 
             if formatted_message:
