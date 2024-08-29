@@ -177,6 +177,10 @@ class Utils():
         tmp_trigger_at = ""
         if "triggerAt" in chat_data:
             tmp_trigger_at = chat_data["triggerAt"]
+
+        tmp_expiry_date = ""
+        if "expireAt" in chat_data:
+            tmp_expiry_date = ": " + chat_data["expireAt"]
         buy_limit_keyboard = [
             [
                 {"text": "Swap", "callback_data": "toggle_buy_swap_mode"},
@@ -194,7 +198,7 @@ class Utils():
                 {"text": 'Trigger at: ' + tmp_trigger_at, "callback_data": "buy_trigger_at"},
             ],
             [
-                {"text": "Expiry", "callback_data": "buy_expire_at"},
+                {"text": "Expiry " + tmp_expiry_date, "callback_data": "buy_expire_at"},
             ],
             [
                 {"text": "CREATE ORDER", "callback_data": "buy_create_order"},

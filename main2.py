@@ -244,7 +244,7 @@ class Bot():
         print("tmpCallBackType in btn click callback----",context.chat_data)
 
         if callback_data == 'wallet':
-            tmp_menu = await self.getSubmenuKeyboard(chat_id)
+            tmp_menu = await self.utils.getSubmenuKeyboard(chat_id)
             submenu_reply_markup = InlineKeyboardMarkup(tmp_menu)
             context.chat_data["callbackType"] = callback_data
             await query.edit_message_text(text="Manage Your Wallet", reply_markup=submenu_reply_markup)
@@ -347,7 +347,6 @@ class Bot():
         elif callback_data == 'toggle_buy_limit_mode':
             print('toggle_buy_limit_mode',tmpCallBackType)
             context.chat_data["callbackType"] = 'buy_with_limit'
-            # print('self.utils.getBuyLimitKeyboard(context.chat_data).>>>>>>>>>>>', self.utils.getBuyLimitKeyboard(context.chat_data))
             updated_markup = InlineKeyboardMarkup(self.utils.getBuyLimitKeyboard(context.chat_data))
             await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
         elif callback_data == 'buy_trigger_at':
@@ -358,6 +357,7 @@ class Bot():
             await self.send_message(chat_id, f"Enter the trigger price of your limit buy order. Valid options are % change (e.g. -5% or 5%) or a specific price.", context, None, tmpCallBackType, tmpPubkey, parseMode=ParseMode.HTML)
         elif callback_data == 'buy_expire_at':
             context.chat_data["callbackType"] = 'buy_with_limit:expire_at'
+            context.chat_data["lastBuyMenuMsgId"] = message_id
             tmpCallBackType = context.chat_data.get("callbackType", '') or ""
             print('buy_expire_at',tmpCallBackType)
             await self.send_message(chat_id, f"Enter the expiry of your limit buy order. Valid options are s (seconds), m (minutes), h (hours), and d (days). E.g. 30m or 2h", context, None, tmpCallBackType, tmpPubkey, parseMode=ParseMode.HTML)
@@ -451,7 +451,7 @@ class Bot():
                     print('-address', token_address)
                     token_info = self.utils.get_token_info(token_address)
                     if token_info:
-                        await self.buy_swap_menu(chat_id, token_info, token_address, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = public_key)
+                        await self.utils.buy_swap_menu(chat_id, token_info, token_address, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = public_key)
                     else:
                         await self.send_message(chat_id, f"Token information not found for address: {token_address}", context)
 
@@ -501,7 +501,7 @@ class Bot():
                     token_info = self.utils.get_token_info(tmp_pub_key)
                     print('toggle_swap_mode',tmpCallBackType)
 
-                    await self.buy_swap_menu(chat_id, token_info, tmp_pub_key, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = tmp_pub_key, is_limit_order_menu = True, chat_data = context.chat_data) 
+                    await self.utils.buy_swap_menu(chat_id, token_info, tmp_pub_key, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = tmp_pub_key, is_limit_order_menu = True, chat_data = context.chat_data) 
 
                     
                     return
@@ -518,6 +518,11 @@ class Bot():
                 print('expiry-', text)
                 if(tmpPubkey is not None and tmpCallBackType == "buy_with_limit" and sub_callbackType == "expire_at"):
                     context.chat_data["expireAt"] = text 
+                    tmp_pub_key = context.chat_data["pubKey"]
+                    token_info = self.utils.get_token_info(tmp_pub_key)
+                    # print('toggle_swap_mode',tmpCallBackType)
+                    
+                    await self.utils.buy_swap_menu(chat_id, token_info, tmp_pub_key, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = tmp_pub_key, is_limit_order_menu = True, chat_data = context.chat_data) 
                     return
             else:
                 print('private chat replyback')
@@ -551,27 +556,27 @@ class Bot():
         return await context.bot.delete_message(chat_id = chat_id, message_id=message_id)
 
 
-    async def buy_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = "", is_limit_order_menu = None, chat_data = None):
-        print('buy_swap_menu>>>>>>>>>>>>>')   
+    # async def buy_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = "", is_limit_order_menu = None, chat_data = None):
+    #     print('buy_swap_menu>>>>>>>>>>>>>')   
 
-        token_info_message = (
-            f"Buy *{token_info['symbol']}* \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
-            f"`{token_address}` _\\(Tap to copy\\)_ \n\n"
-            f"Price: *${self.utils.escape_dots(token_info['price_usd'])}*\n"
-            f"Liquidity: *{self.utils.escape_dots(locale.currency(token_info['liquidity_usd'], grouping=True))}*\n"
-            f"FDV: *{self.utils.escape_dots(locale.currency(token_info['fdv'], grouping=True))}*\n"
-        )
+    #     token_info_message = (
+    #         f"Buy *{token_info['symbol']}* \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
+    #         f"`{token_address}` _\\(Tap to copy\\)_ \n\n"
+    #         f"Price: *${self.utils.escape_dots(token_info['price_usd'])}*\n"
+    #         f"Liquidity: *{self.utils.escape_dots(locale.currency(token_info['liquidity_usd'], grouping=True))}*\n"
+    #         f"FDV: *{self.utils.escape_dots(locale.currency(token_info['fdv'], grouping=True))}*\n"
+    #     )
         
-        reply_keyboard = InlineKeyboardMarkup(self.utils.buy_swap_keyboard)
+    #     reply_keyboard = InlineKeyboardMarkup(self.utils.buy_swap_keyboard)
 
-        if (is_limit_order_menu and chat_data):
-            menu_message_id = context.chat_data["lastBuyMenuMsgId"]
-            if menu_message_id:
-                await self.delete_message(chat_id, menu_message_id, context)
+    #     if (is_limit_order_menu and chat_data):
+    #         menu_message_id = context.chat_data["lastBuyMenuMsgId"]
+    #         if menu_message_id:
+    #             await self.delete_message(chat_id, menu_message_id, context)
            
-            reply_keyboard = InlineKeyboardMarkup(self.utils.getBuyLimitKeyboard(chat_data))
+    #         reply_keyboard = InlineKeyboardMarkup(self.utils.getBuyLimitKeyboard(chat_data))
 
-        await self.send_message(chat_id, token_info_message, context, reply_keyboard, callbackType = callBackType,userFilledPubkey = publicKey, message_id = message_id)
+    #     await self.send_message(chat_id, token_info_message, context, reply_keyboard, callbackType = callBackType,userFilledPubkey = publicKey, message_id = message_id)
 
 
 
@@ -738,7 +743,12 @@ class Bot():
         if not(triggerAt):
             await self.send_message(chat_id, f"__You need to enter trigger price to proceed__", context, None, tmpCallBackType, tmpPubkey)
             return
+        if not(expireAt):
+            await self.send_message(chat_id, f"__You need to enter expiry time to proceed__", context, None, tmpCallBackType, tmpPubkey)
+            return
         
+        # print('ready for buy ')
+        # return 
         try:
             
             retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
@@ -907,36 +917,36 @@ class Bot():
 
         await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
 
-    async def getSubmenuKeyboard(self, chat_id):
-        retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
+    # async def getSubmenuKeyboard(self, chat_id):
+    #     retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
         
-        appended_submenu_keyboard = [
-            [
-                InlineKeyboardButton("Export Private Key", callback_data='export_private_key')
-            ],
-            [
-                InlineKeyboardButton("Check Balance", callback_data='get_balance'),
-                InlineKeyboardButton("Withdraw SOL", callback_data='withdraw_sol'),
-            ],
-        ]
+    #     appended_submenu_keyboard = [
+    #         [
+    #             InlineKeyboardButton("Export Private Key", callback_data='export_private_key')
+    #         ],
+    #         [
+    #             InlineKeyboardButton("Check Balance", callback_data='get_balance'),
+    #             InlineKeyboardButton("Withdraw SOL", callback_data='withdraw_sol'),
+    #         ],
+    #     ]
 
-        if (retrieved_user == None):
-            submenu_keyboard = [
-                [
-                    InlineKeyboardButton("Generate Wallet", callback_data='generate_wallet'),
-                    InlineKeyboardButton("Back", callback_data='back_to_main')
-                ]
-            ]
+    #     if (retrieved_user == None):
+    #         submenu_keyboard = [
+    #             [
+    #                 InlineKeyboardButton("Generate Wallet", callback_data='generate_wallet'),
+    #                 InlineKeyboardButton("Back", callback_data='back_to_main')
+    #             ]
+    #         ]
 
-        else:
-            submenu_keyboard = [
-                [
-                    InlineKeyboardButton("View Wallet", callback_data='generate_wallet'),
-                    InlineKeyboardButton("Back", callback_data='back_to_main'),
-                ],
-            ]
-        appended_submenu_keyboard.extend(submenu_keyboard)
-        return appended_submenu_keyboard
+    #     else:
+    #         submenu_keyboard = [
+    #             [
+    #                 InlineKeyboardButton("View Wallet", callback_data='generate_wallet'),
+    #                 InlineKeyboardButton("Back", callback_data='back_to_main'),
+    #             ],
+    #         ]
+    #     appended_submenu_keyboard.extend(submenu_keyboard)
+    #     return appended_submenu_keyboard
 
 
     async def sellToken(self, chat_id, context, token_to_sell, sellPercent):        
