@@ -71,13 +71,10 @@ class Utils():
 
 
     async def buy_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = "", is_limit_order_menu = None, chat_data = None):
-        tmp_order_type = "Buy"
-
-        if('limitOrderType' in context.chat_data and context.chat_data["limitOrderType"] == 'sell'):
-            tmp_order_type = "Sell"
+        # print('buy_swap_menu>>>>>>>>>>>>>')   
 
         token_info_message = (
-            f"{tmp_order_type} *{token_info['symbol']}* \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
+            f"Buy *{token_info['symbol']}* \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
             f"`{token_address}` _\\(Tap to copy\\)_ \n\n"
             f"Price: *${self.escape_dots(token_info['price_usd'])}*\n"
             f"Liquidity: *{self.escape_dots(locale.currency(token_info['liquidity_usd'], grouping=True))}*\n"
@@ -94,6 +91,55 @@ class Utils():
             reply_keyboard = InlineKeyboardMarkup(self.getBuyLimitKeyboard(chat_data))
 
         await self.send_message(chat_id, token_info_message, context, reply_keyboard, callbackType = callBackType,userFilledPubkey = publicKey, message_id = message_id)
+
+
+
+
+
+    def getUpdatedBuyKeyboard(self, keyboard, chat_data, toggleSwap):
+        new_buttons = []
+        for row in keyboard:
+            new_row = []
+            for button in row:
+                if button.callback_data == 'toggle_swap_mode' or button.callback_data == 'toggle_limit_mode':                
+                    if button.callback_data == 'toggle_swap_mode':
+                        new_row.append(InlineKeyboardButton(
+                            text='Swap' + (' ✅' if toggleSwap else ''),
+                            callback_data='toggle_swap_mode'
+                        ))
+                    if button.callback_data == 'toggle_limit_mode':
+                        new_row.append(InlineKeyboardButton(
+                            text='Limit' + (' ✅' if not(toggleSwap) else ''),
+                            callback_data='toggle_limit_mode'
+                        ))
+                else:
+                    # Keep other buttons unchanged
+                    if not(button.callback_data == 'trigger_at' or button.callback_data == 'create_order' or button.callback_data == 'expire_btn'):
+                        new_row.append(button)
+            new_buttons.append(new_row)
+        
+        if not(toggleSwap):
+            tmp_trigger_at = ""
+            if "triggerAt" in chat_data:
+                tmp_trigger_at = chat_data["triggerAt"]
+            trigger_btn = [InlineKeyboardButton(
+                text='Trigger at:' + tmp_trigger_at,
+                callback_data='trigger_at'
+            )]
+            expire_btn = [InlineKeyboardButton(
+                text='Expiry:',
+                callback_data='expire_at'
+            )]
+            execute_btn = [InlineKeyboardButton(
+                text='CREATE ORDER',
+                callback_data='create_order'
+            )]
+            new_buttons.append(trigger_btn)
+            new_buttons.append(expire_btn)
+            new_buttons.append(execute_btn)
+
+        updated_markup = InlineKeyboardMarkup(new_buttons) 
+        return updated_markup
 
 
     async def getSubmenuKeyboard(self, chat_id):
@@ -211,14 +257,7 @@ class Utils():
                 # mint = info.get('mint')
                 token_info = self.get_token_info(token_mint)
                 if token_info: 
-                    response = requests.get('https://api.raydium.io/v2/main/price')
-                    response.raise_for_status()  # Check for HTTP errors
-                    price_list = response.json()
-                    # sol_curr_price = price_list[self.sol_address]
-                    curr_price_of_token = price_list.get(token_mint, None)
-                    
-                    if(curr_price_of_token == None):
-                        curr_price_of_token = token_info['price_usd']
+                    curr_price_of_token = token_info['price_usd']
                     
                     tmp_decimal = self.jupiterHelper.get_token_decimal_info(token_mint)
                     # print("tmp_decimal>>>>>>>>>>>>>>>>>", tmp_decimal)
@@ -319,6 +358,7 @@ class Utils():
             ],
 
         ])
+
         await self.send_message(chat_id, token_info_message, context, reply_keyboard,callbackType = callBackType,userFilledPubkey = token_address)
 
 
@@ -326,13 +366,14 @@ class Utils():
     def getBalance(self, publicKey):
         response = self.helper.getBalance(Pubkey.from_string(publicKey))
         sol_bal = math.ceil((response.value / self.one_sol_in_lamports) * 100) / 100
-            
-        sol_price_response = requests.get('https://api.raydium.io/v2/main/price')
-        sol_price_response.raise_for_status()  # Check for HTTP errors
-        data = sol_price_response.json()
-        sol_price = data[self.sol_address]
-        usd_bal =  math.ceil((sol_bal * sol_price) * 100) / 100
-        return {"sol_bal":sol_bal, "usd_bal":usd_bal}
+        
+        token_info = self.get_token_info(self.sol_address)                 
+        if token_info: 
+            sol_price = token_info['price_usd'] 
+            usd_bal =  math.ceil((sol_bal * float(sol_price)) * 100) / 100
+            return {"sol_bal":sol_bal, "usd_bal":usd_bal}
+        else:
+            return None
 
 
     def encode_key(self, key: bytes) -> str:

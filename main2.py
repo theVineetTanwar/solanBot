@@ -404,14 +404,7 @@ class Bot():
                     
                     token_info = self.utils.get_token_info(tmp_pub_key)                 
                     if token_info: 
-                        response = requests.get('https://api.raydium.io/v2/main/price')
-                        response.raise_for_status()  # Check for HTTP errors
-                        price_list = response.json()
-                        curr_price_of_token = price_list.get(tmpPubkey, None)
-                        
-                        if(curr_price_of_token == None):
-                            curr_price_of_token = token_info['price_usd']
-   
+                        curr_price_of_token = token_info['price_usd']
                         triggerAt = float(curr_price_of_token) * (1 + float(triggerPercent) / 100) # getting trigger price(in USD) from percent
 
                         context.chat_data["triggerAt"] = f"{float(triggerAt):.8f}"
@@ -532,13 +525,7 @@ class Bot():
                                 
                 token_info = self.utils.get_token_info(tmpPubkey) # need to find another way to get token Symbol
                 if token_info: 
-                    response = requests.get('https://api.raydium.io/v2/main/price')
-                    response.raise_for_status()  # Check for HTTP errors
-                    price_list = response.json()
-                    curr_price_of_token = price_list.get(tmpPubkey, None)
-                    
-                    if(curr_price_of_token == None):
-                        curr_price_of_token = token_info['price_usd']
+                    curr_price_of_token = token_info['price_usd']
                         
                         
                     if(triggerPercent):
@@ -630,13 +617,7 @@ class Bot():
                                 
                 token_info = self.utils.get_token_info(tmpPubkey) # need to find another way to get token Symbol
                 if token_info: 
-                    response = requests.get('https://api.raydium.io/v2/main/price')
-                    response.raise_for_status()  # Check for HTTP errors
-                    price_list = response.json()
-                    curr_price_of_token = price_list.get(tmpPubkey, None)
-                    
-                    if(curr_price_of_token == None):
-                        curr_price_of_token = token_info['price_usd']
+                    curr_price_of_token = token_info['price_usd']
                         
                         
                     if(triggerPercent):
@@ -726,19 +707,14 @@ class Bot():
                 mint = info.get('mint')
                 token_info = self.utils.get_token_info(mint) # need to find another way to get token Symbol
                 if token_info: 
-                    response = requests.get('https://api.raydium.io/v2/main/price')
-                    response.raise_for_status()  # Check for HTTP errors
-                    price_list = response.json()
-                    sol_curr_price = price_list[self.sol_address]
-                    curr_price_of_token = price_list.get(mint, None)
-                    
-                    if(curr_price_of_token == None):
-                        curr_price_of_token = token_info['price_usd']
+                    curr_price_of_token = token_info['price_usd']
+                    sol_info = self.utils.get_token_info(self.sol_address)                 
+                    sol_curr_price = sol_info['price_usd']                   
                     
                     price_of_owned_token = float(curr_price_of_token) * float(ui_amount)
                     rounded_price_of_owned_token = round(price_of_owned_token, 6)
                 
-                    qty_in_sol = rounded_price_of_owned_token / sol_curr_price
+                    qty_in_sol = rounded_price_of_owned_token / float(sol_curr_price)
                     
                     formatted_message.append(f"<b><a href='https://t.me/{constant.bot_name}?start=sellToken-{mint}'>{str(token_info['symbol']).upper()}</a> ➖</b> {qty_in_sol:.6f} SOL - (${rounded_price_of_owned_token:.2f})")
     
@@ -810,19 +786,14 @@ class Bot():
                 mint = info.get('mint')
                 token_info = self.utils.get_token_info(mint)
                 if token_info: 
-                    response = requests.get('https://api.raydium.io/v2/main/price')
-                    response.raise_for_status()  # Check for HTTP errors
-                    price_list = response.json()
-                    sol_curr_price = price_list[self.sol_address]
-                    curr_price_of_token = price_list.get(mint, None)
-                    
-                    if(curr_price_of_token == None):
-                        curr_price_of_token = token_info['price_usd']
+                    curr_price_of_token = token_info['price_usd']             
+                    sol_info = self.utils.get_token_info(self.sol_address)                 
+                    sol_curr_price = sol_info['price_usd']   
                     
                     price_of_owned_token = float(curr_price_of_token) * float(ui_amount)
                     rounded_price_of_owned_token = round(price_of_owned_token, 6)
                     
-                    qty_in_sol = rounded_price_of_owned_token / sol_curr_price
+                    qty_in_sol = rounded_price_of_owned_token / float(sol_curr_price)
                     total_owned_sol = total_owned_sol + qty_in_sol
                     toatl_owned_sol_price = toatl_owned_sol_price + rounded_price_of_owned_token
                     
