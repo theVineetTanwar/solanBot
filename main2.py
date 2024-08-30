@@ -241,7 +241,7 @@ class Bot():
             context.chat_data["callbackType"] = "buy_with_limit"
 
             updated_markup = InlineKeyboardMarkup(self.utils.getBuyLimitKeyboard(context.chat_data))
-            await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
+            await self.edit_message_reply_markup(chat_id = chat_id, message_id = message_id, context = context, reply_keyboard=updated_markup)
         elif callback_data == 'buy_limit_0.5_sol':
             print("buy_limit_0.5_sol , tmpCallBackType-",tmpCallBackType, tmpPubkey)
             context.chat_data["limitAmount"] = 0.5
@@ -249,7 +249,7 @@ class Bot():
             context.chat_data["callbackType"] = "buy_with_limit"
             
             updated_markup = InlineKeyboardMarkup(self.utils.getBuyLimitKeyboard(context.chat_data))
-            await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
+            await self.edit_message_reply_markup(chat_id = chat_id, message_id = message_id, context = context, reply_keyboard=updated_markup)
         elif callback_data == 'buy_limit_1_sol':
             print("buy_limit_1_sol , tmpCallBackType-",tmpCallBackType, tmpPubkey)
             context.chat_data["limitAmount"] = 1
@@ -257,7 +257,7 @@ class Bot():
             context.chat_data["callbackType"] = "buy_with_limit"
 
             updated_markup = InlineKeyboardMarkup(self.utils.getBuyLimitKeyboard(context.chat_data))
-            await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
+            await self.edit_message_reply_markup(chat_id = chat_id, message_id = message_id, context = context, reply_keyboard=updated_markup)
         elif callback_data == 'buy_limit_x_sol':
             print("buy_limit_x_sol , tmpCallBackType-",tmpCallBackType, tmpPubkey)
             context.chat_data["lastBuyMenuMsgId"] = message_id
@@ -277,12 +277,12 @@ class Bot():
             context.chat_data["callbackType"] = 'buy_token'
             print('toggle_buy_swap_mode',tmpCallBackType)
             updated_markup = InlineKeyboardMarkup(self.utils.buy_swap_keyboard)
-            await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
+            await self.edit_message_reply_markup(chat_id = chat_id, message_id = message_id, context = context, reply_keyboard=updated_markup)
         elif callback_data == 'toggle_buy_limit_mode':
             print('toggle_buy_limit_mode',tmpCallBackType)
             context.chat_data["callbackType"] = 'buy_with_limit'
             updated_markup = InlineKeyboardMarkup(self.utils.getBuyLimitKeyboard(context.chat_data))
-            await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
+            await self.edit_message_reply_markup(chat_id = chat_id, message_id = message_id, context = context, reply_keyboard=updated_markup)
         elif callback_data == 'buy_trigger_at':
             context.chat_data["callbackType"] = 'buy_with_limit:trigger_at'
             context.chat_data["lastBuyMenuMsgId"] = message_id
@@ -304,16 +304,7 @@ class Bot():
                 await self.sellWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, limitAmount, triggerAt, expireAt)
             else:
                 await self.buyWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, limitAmount, triggerAt, expireAt)
-
-        # elif callback_data == 'toggle_sell_swap_mode':
-        #     context.chat_data["callbackType"] = 'sell_token'
-        #     print('toggle_sell_swap_mode',tmpCallBackType)
-        #     markup = query.message.reply_markup
-        # elif callback_data == 'toggle_sell_limit_mode':
-        #     print('toggle_sell_swap_mode',tmpCallBackType)
-        #     context.chat_data["callbackType"] = 'sell_with_limit'
-        #     markup = query.message.reply_markup
-
+        
 
 
 
@@ -395,7 +386,8 @@ class Bot():
                     print('---else',context)
                     await self.send_message(chat_id, f"Enter receiver\\'s public key", context)
             # checks Percentage
-            elif re.match(r'^\d+(\.\d+)?%$', text):
+            
+            elif re.match(r'(-?\d+(\.\d+)?)%', text):
                 if(not(tmpCallBackType == "buy_with_limit")):
                     await self.send_message(chat_id, f"You have not selected transaction type for the transaction" , context, None, tmpCallBackType, tmpPubkey)
                     return
@@ -473,6 +465,13 @@ class Bot():
             print(f"Other error occurred: {err}")
 
 
+    async def edit_message_reply_markup(self, chat_id, message_id, context: ContextTypes.DEFAULT_TYPE, reply_keyboard=None):
+        try:
+            return await context.bot.edit_message_reply_markup(chat_id = chat_id, message_id=message_id, reply_markup=reply_keyboard)
+        except Exception as err:
+            print(f"Other error occurred: {err}")
+
+
     async def delete_message(self, chat_id, message_id, context: ContextTypes.DEFAULT_TYPE):
         return await context.bot.delete_message(chat_id = chat_id, message_id=message_id)
 
@@ -504,7 +503,7 @@ class Bot():
                     
                     
                 triggerPercent = None
-                if (re.match(r'^\d+(\.\d+)?%$', str(triggerAt))):
+                if (re.match(r'(-?\d+(\.\d+)?)%', str(triggerAt))):
                     triggerPercent = float(triggerAt.strip('%'))
                 
                 print ('triggerPercent',triggerPercent)
@@ -548,7 +547,7 @@ class Bot():
                     # print('curr_price_of_token-----------------',f"{curr_price_of_token:.8f}")
                     # print('triggerAt-----------------',f"{triggerAt:.8f}")
     
-                    no_of_tokens = triggerAt / float(curr_price_of_token) # getting number of tokens can be bought from with given price (here:- triggerAt is price in usd)
+                    no_of_tokens = float(triggerAt) / float(curr_price_of_token) # getting number of tokens can be bought from with given price (here:- triggerAt is price in usd)
                     out_amount = int(no_of_tokens * (10 ** output_token_decimal)) 
                     
                     print('no_of_tokens-----------------',no_of_tokens)
@@ -602,7 +601,7 @@ class Bot():
                     
                     
                 triggerPercent = None
-                if (re.match(r'^\d+(\.\d+)?%$', str(triggerAt))):
+                if (re.match(r'(-?\d+(\.\d+)?)%', str(triggerAt))):
                     triggerPercent = float(triggerAt.strip('%'))
                 
                 print ('triggerPercent',triggerPercent)
@@ -645,13 +644,13 @@ class Bot():
                         
                     print('curr_price_of_token-----------------',f"{float(curr_price_of_token):.8f}")
                     print('triggerAt-----------------',f"{float(triggerAt):.8f}")
-                    no_of_tokens = triggerAt / float(curr_price_of_token) # getting number of tokens can be bought from with given price (here:- triggerAt is price in usd)
+                    no_of_tokens = float(triggerAt) / float(curr_price_of_token) # getting number of tokens can be bought from with given price (here:- triggerAt is price in usd)
                     out_amount = int(no_of_tokens * (10 ** output_token_decimal)) 
                     
                     print('no_of_tokens-----------------',no_of_tokens)
                     print('out_amount-----------------',out_amount)
                     print ('input_mint, output_mint, in_amount, out_amount, sender',input_mint, output_mint, in_amount, out_amount, timestamp)
-                    return 
+
                     jup_txn_id = await tmpJupiterHel.create_order(input_mint, output_mint, in_amount, out_amount, sender, timestamp) # need to send slippage too
         
                     if not jup_txn_id:
