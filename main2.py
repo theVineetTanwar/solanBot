@@ -403,14 +403,24 @@ class Bot():
                 
                 print('percentage-', text)
                 if(tmpPubkey is not None and tmpCallBackType == "buy_with_limit" and sub_callbackType == "trigger_at"):
-                    context.chat_data["triggerAt"] = text
-                    # context.chat_data["callbackType"] = 'buy_token'
-                    tmp_pub_key = context.chat_data["pubKey"]
-                    token_info = self.utils.get_token_info(tmp_pub_key)
                     print('toggle_swap_mode',tmpCallBackType)
+                    triggerPercent = float(text.strip('%'))
+                    tmp_pub_key = context.chat_data["pubKey"]
+                    
+                    token_info = self.utils.get_token_info(tmp_pub_key)                 
+                    if token_info: 
+                        response = requests.get('https://api.raydium.io/v2/main/price')
+                        response.raise_for_status()  # Check for HTTP errors
+                        price_list = response.json()
+                        curr_price_of_token = price_list.get(tmpPubkey, None)
+                        
+                        if(curr_price_of_token == None):
+                            curr_price_of_token = token_info['price_usd']
+   
+                        triggerAt = float(curr_price_of_token) * (1 + float(triggerPercent) / 100) # getting trigger price(in USD) from percent
 
-                    await self.utils.buy_swap_menu(chat_id, token_info, tmp_pub_key, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = tmp_pub_key, is_limit_order_menu = True, chat_data = context.chat_data) 
-
+                        context.chat_data["triggerAt"] = f"{float(triggerAt):.8f}"
+                        await self.utils.buy_swap_menu(chat_id, token_info, tmp_pub_key, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = tmp_pub_key, is_limit_order_menu = True, chat_data = context.chat_data) 
                     
                     return
             # checks Expiry
@@ -638,7 +648,7 @@ class Bot():
                     print('no_of_tokens-----------------',no_of_tokens)
                     print('out_amount-----------------',out_amount)
                     print ('input_mint, output_mint, in_amount, out_amount, sender',input_mint, output_mint, in_amount, out_amount, timestamp)
-    
+                    return 
                     jup_txn_id = await tmpJupiterHel.create_order(input_mint, output_mint, in_amount, out_amount, sender, timestamp) # need to send slippage too
         
                     if not jup_txn_id:

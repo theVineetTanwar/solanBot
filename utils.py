@@ -196,10 +196,10 @@ class Utils():
             ],
             [
                 {"text": '✅ 1 SOL' if tmp_limit_amount == 1 else "1 SOL", "callback_data": "buy_limit_1_sol"},
-                {"text": '✅ ' + str(tmp_limit_amount) + ' ✏️' if (not(tmp_limit_amount == 0.1 or tmp_limit_amount == 0.5 or tmp_limit_amount == 1) and tmp_limit_amount) else 'X SOL ✏️', "callback_data": "buy_limit_x_sol"}
+                {"text": '✅ ' + str(f"{tmp_limit_amount:.8f}") + ' ✏️' if (not(tmp_limit_amount == 0.1 or tmp_limit_amount == 0.5 or tmp_limit_amount == 1) and tmp_limit_amount) else 'X SOL ✏️', "callback_data": "buy_limit_x_sol"}
             ],
             [
-                {"text": 'Trigger at: ' + str(tmp_trigger_at), "callback_data": "buy_trigger_at"},
+                {"text": 'Trigger at: $' + str(tmp_trigger_at), "callback_data": "buy_trigger_at"},
             ],
             [
                 {"text": "Expiry " + tmp_expiry_date, "callback_data": "buy_expire_at"},
