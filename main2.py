@@ -2,9 +2,6 @@ import asyncio
 import os
 import re
 import requests
-import base64
-import json
-import math  
 import locale
 import time
 import datetime
@@ -50,71 +47,6 @@ wallet_collection = db.wallet
 
 chain_id = "solana"  # Change to the appropriate chain ID
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8') 
-
-
-# main_keyboard = [
-#     [
-#         {"text": "Buy", "callback_data": "buy_token"},
-#         {"text": "Sell", "callback_data": "sell_token"},
-#     ],
-#     [
-#         {"text": "Wallet", "callback_data": "wallet"},
-#         {"text": "Positions", "callback_data": "list_token"}
-#     ],
-#     [
-#         {"text": "Transfer Token", "callback_data": "transfer_token"},
-#     ],
-#     [
-#         {"text": "Settings", "callback_data": "settings"},
-#     ],
-# ]
-
-
-# buy_swap_keyboard = [
-#     [
-#         {"text": "Swap ✅", "callback_data": "toggle_buy_swap_mode"},
-#         {"text": "Limit", "callback_data": "toggle_buy_limit_mode"}
-#     ],
-#     [
-#         {"text": "0.1 SOL", "callback_data": "buy_0.1_sol"},
-#         {"text": "0.5 SOL", "callback_data": "buy_0.5_sol"},
-#     ],
-#     [
-#         {"text": "1 SOL", "callback_data": "buy_1_sol"},
-#         {"text": "Buy with X SOL ✏️", "callback_data": "buy_x_sol"}
-#     ],
-# ]
-
-
-# def getBuyLimitKeyboard (chat_data):
-#     tmp_trigger_at = ""
-#     if "triggerAt" in chat_data:
-#         tmp_trigger_at = chat_data["triggerAt"]
-#     buy_limit_keyboard = [
-#         [
-#             {"text": "Swap", "callback_data": "toggle_buy_swap_mode"},
-#             {"text": "Limit ✅", "callback_data": "toggle_buy_limit_mode"}
-#         ],
-#         [
-#             {"text": "0.1 SOL", "callback_data": "buy_limit_0.1_sol"},
-#             {"text": "0.5 SOL", "callback_data": "buy_limit_0.5_sol"},
-#         ],
-#         [
-#             {"text": "1 SOL", "callback_data": "buy_limit_1_sol"},
-#             {"text": "Buy with X SOL ✏️", "callback_data": ""}
-#         ],
-#         [
-#             {"text": 'Trigger at: ' + tmp_trigger_at, "callback_data": "buy_trigger_at"},
-#         ],
-#         [
-#             {"text": "Expiry", "callback_data": "buy_expire_at"},
-#         ],
-#         [
-#             {"text": "CREATE ORDER", "callback_data": "buy_create_order"},
-#         ]
-#     ]
-#     return buy_limit_keyboard
-
 
 
 class Bot():
@@ -211,19 +143,6 @@ class Bot():
         else:
             reply_markup = InlineKeyboardMarkup(self.utils.main_keyboard)
             await update.message.reply_text('Hello! This is Crypto Bot.', reply_markup=reply_markup)
-
-
-
-    # def getBalance(self, publicKey):
-    #     response = self.helper.getBalance(Pubkey.from_string(publicKey))
-    #     sol_bal = math.ceil((response.value / self.one_sol_in_lamports) * 100) / 100
-            
-    #     sol_price_response = requests.get('https://api.raydium.io/v2/main/price')
-    #     sol_price_response.raise_for_status()  # Check for HTTP errors
-    #     data = sol_price_response.json()
-    #     sol_price = data[self.sol_address]
-    #     usd_bal =  math.ceil((sol_bal * sol_price) * 100) / 100
-    #     return {"sol_bal":sol_bal, "usd_bal":usd_bal}
 
 
     async def button_click_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -395,35 +314,6 @@ class Bot():
 
 
 
-    # def get_token_info(self, token_address):
-    #     try:
-    #         api_url = f"https://api.dexscreener.io/latest/dex/tokens/{token_address}"
-    #         response = requests.get(api_url)
-    #         response.raise_for_status()  # Check for HTTP errors
-    #         data = response.json()
-    #         # return None
-    #         if data['pairs']:
-    #             token_info = data['pairs'][0]  # Get the first pair information
-    #             return {
-    #                 "name": token_info['baseToken']['name'],
-    #                 "symbol": token_info['baseToken']['symbol'],
-    #                 "price_usd": token_info.get('priceUsd', 'N/A'),
-    #                 "liquidity_usd": token_info.get('liquidity', {}).get('usd', 'N/A'),
-    #                 "fdv": token_info.get('fdv', 'N/A')
-    #             }
-    #         else:
-    #             return None
-    #     except requests.exceptions.HTTPError as http_err:
-    #         print(f"HTTP error occurred: {http_err}")
-    #     except Exception as err:
-    #         print(f"Other error occurred: {err}")
-
-
-    # def escape_dots(self, value):
-    #     value_str = str(value)
-    #     escaped_str = re.sub(r'\.', r'\\.', value_str)
-    #     return escaped_str
-
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = update.message.text
@@ -573,90 +463,6 @@ class Bot():
     async def delete_message(self, chat_id, message_id, context: ContextTypes.DEFAULT_TYPE):
         return await context.bot.delete_message(chat_id = chat_id, message_id=message_id)
 
-
-    # async def buy_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = "", publicKey = "", is_limit_order_menu = None, chat_data = None):
-    #     print('buy_swap_menu>>>>>>>>>>>>>')   
-
-    #     token_info_message = (
-    #         f"Buy *{token_info['symbol']}* \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
-    #         f"`{token_address}` _\\(Tap to copy\\)_ \n\n"
-    #         f"Price: *${self.utils.escape_dots(token_info['price_usd'])}*\n"
-    #         f"Liquidity: *{self.utils.escape_dots(locale.currency(token_info['liquidity_usd'], grouping=True))}*\n"
-    #         f"FDV: *{self.utils.escape_dots(locale.currency(token_info['fdv'], grouping=True))}*\n"
-    #     )
-        
-    #     reply_keyboard = InlineKeyboardMarkup(self.utils.buy_swap_keyboard)
-
-    #     if (is_limit_order_menu and chat_data):
-    #         menu_message_id = context.chat_data["lastBuyMenuMsgId"]
-    #         if menu_message_id:
-    #             await self.delete_message(chat_id, menu_message_id, context)
-           
-    #         reply_keyboard = InlineKeyboardMarkup(self.utils.getBuyLimitKeyboard(chat_data))
-
-    #     await self.send_message(chat_id, token_info_message, context, reply_keyboard, callbackType = callBackType,userFilledPubkey = publicKey, message_id = message_id)
-
-
-
-    # async def sell_swap_menu(self, chat_id, token_info, token_address, context: ContextTypes.DEFAULT_TYPE, message_id=None, callBackType = ""):
-    #     sell_button_text = "SELL ✅"
-    #     limit_button_text = "Limit"
-
-    #     sell_25_text = "Sell 25%"
-    #     sell_50_text = "Sell 50%"
-    #     sell_100_text = "Sell 100%"
-    #     sell_x_text = "Sell X % ✏️"
-        
-    #     retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
-    #     accInfo = self.helper.getAccountInfo(Pubkey.from_string(retrieved_user.publicKey))
-    #     tokens = accInfo.value
-        
-    #     balance = 0
-    #     for token in tokens:   
-    #         info = token.account.data.parsed.get('info')
-    #         ui_amount = info.get('tokenAmount', {}).get('uiAmount')
-    #         mint = info.get('mint')
-    #         if(mint == token_address):
-    #             balance = ui_amount
-        
-
-    #     token_info_message = (
-    #         f"Sell *{token_info['symbol']}* \\- {token_info['name']} [📈](https://dexscreener.com/{chain_id}/{token_address})\n"
-    #         f"`{token_address}` _\\(Tap to copy\\)_ \n\n"
-    #         f"Balance: *{self.utils.escape_dots(balance)} {token_info['symbol'].upper()}*\n"
-    #         f"Price: *${self.utils.escape_dots(token_info['price_usd'])}*\n"
-    #         f"Liquidity: *{self.utils.escape_dots(locale.currency(token_info['liquidity_usd'], grouping=True))}*\n"
-    #         f"FDV: *{self.utils.escape_dots(locale.currency(token_info['fdv'], grouping=True))}*\n"
-    #         # f"__Choose an action__\\:"
-    #     )
-
-    #     reply_keyboard = InlineKeyboardMarkup([
-    #         [
-    #             {"text": sell_button_text, "callback_data": "toggle_sell_mode"},
-    #             {"text": limit_button_text, "callback_data": "toggle_buy_limit_mode"}
-    #         ],
-    #         [
-    #             {"text": sell_25_text, "callback_data": "sell_25_percent"},
-    #             {"text": sell_50_text, "callback_data": "sell_50_percent"},
-    #         ],
-    #         [
-    #             {"text": sell_100_text, "callback_data": "sell_100_percent"},
-    #             {"text": sell_x_text, "callback_data": "sell_x_percent"}
-    #         ],
-
-    #     ])
-
-    #     await self.send_message(chat_id, token_info_message, context, reply_keyboard,callbackType = callBackType,userFilledPubkey = token_address)
-
-
-
-    # def encode_key(self, key: bytes) -> str:
-    #     return base64.b64encode(key).decode('utf-8')
-
-    # def decode_key(self, encoded_key: str) -> bytes:
-    #     return base64.b64decode(encoded_key)
-    
-    
     async def sellWithLimit(self, chat_id, context, tmpPubkey, tmpCallBackType, inputAmount, triggerAt, expireAt):
         print('--- sell with limit func---', chat_id, tmpPubkey, tmpCallBackType, inputAmount, triggerAt, expireAt)
         if not(inputAmount):
@@ -749,9 +555,6 @@ class Bot():
         except Exception as err:
             print("Error while Buying Limit Order-----", err)
             await self.send_message(chat_id, f"Buying Limit Order Failed\\.\\.\\.",  context, None, tmpCallBackType, tmpPubkey)
-
-    
-    
     
     async def buyWithLimit(self, chat_id, context, tmpPubkey, tmpCallBackType, inputAmount, triggerAt, expireAt):
         print('--- buy with limit func---', chat_id, tmpPubkey, tmpCallBackType, inputAmount, triggerAt, expireAt)
@@ -935,37 +738,6 @@ class Bot():
 
         await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
 
-    # async def getSubmenuKeyboard(self, chat_id):
-    #     retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
-        
-    #     appended_submenu_keyboard = [
-    #         [
-    #             InlineKeyboardButton("Export Private Key", callback_data='export_private_key')
-    #         ],
-    #         [
-    #             InlineKeyboardButton("Check Balance", callback_data='get_balance'),
-    #             InlineKeyboardButton("Withdraw SOL", callback_data='withdraw_sol'),
-    #         ],
-    #     ]
-
-    #     if (retrieved_user == None):
-    #         submenu_keyboard = [
-    #             [
-    #                 InlineKeyboardButton("Generate Wallet", callback_data='generate_wallet'),
-    #                 InlineKeyboardButton("Back", callback_data='back_to_main')
-    #             ]
-    #         ]
-
-    #     else:
-    #         submenu_keyboard = [
-    #             [
-    #                 InlineKeyboardButton("View Wallet", callback_data='generate_wallet'),
-    #                 InlineKeyboardButton("Back", callback_data='back_to_main'),
-    #             ],
-    #         ]
-    #     appended_submenu_keyboard.extend(submenu_keyboard)
-    #     return appended_submenu_keyboard
-
 
     async def sellToken(self, chat_id, context, token_to_sell, sellPercent):        
         print("SELLLLLTOKEN", sellPercent, token_to_sell)
@@ -1053,85 +825,6 @@ class Bot():
         message = "\n".join(formatted_message)
         
         await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
-
-
-    # async def listOrders(self, chat_id, context):    
-
-    #     msg = await self.send_message(chat_id, f"_Fetching your orders\\.\\.\\._", context)
-        
-    #     retrieved_user = await self.userModule.get_user_by_userId(int(chat_id))
-    #     if(retrieved_user):
-    #         sender = Keypair.from_base58_string(retrieved_user.keypair)
-    #         self.jupiterHelper.initializeJup(sender)
-    #         orderList = await self.jupiterHelper.query_orders_history(retrieved_user.publicKey)
-    #         # tokens = orderList.value
-            
-    #         formatted_message = []
-            
-    #         message = "You have no active limit orders. Create a limit order from the Buy/Sell menu."
-    #         for order in orderList:   
-    #             account = order.get('account')
-    #             token_public_key = order.get('publicKey')
-    #             # print("account>>>>>>>>>>>>>>>>>>>", account)
-    #             # token_amount = info.get('tokenAmount', {}).get('amount')
-    #             token_mint = account["inputMint"]
-    #             orderType = "Sell "
-    #             sol_amount = float(int(account["oriOutAmount"]) / self.one_sol_in_lamports)
-    #             token_amount = account["oriInAmount"]
-    #             expiry_date = account["expiredAt"]
-    #             if not expiry_date:
-    #                 expiry_date = "Not setted"
-    #             else:
-    #                 expiry_date = datetime.datetime.fromtimestamp(int(expiry_date))
-                    
-    #             if (account["inputMint"]  == self.sol_address ):
-    #                 # print('order is buy type')
-    #                 # global token_mint
-    #                 token_mint = account["outputMint"]
-    #                 orderType = "Buy "
-    #                 sol_amount = float(int(account["oriInAmount"]) / self.one_sol_in_lamports)
-    #                 token_amount = account["oriOutAmount"]
-                    
-    #             # else:
-    #             #     print('order is sell type')
-
-
-    #             # ui_amount = info.get('tokenAmount', {}).get('uiAmount')
-    #             # mint = info.get('mint')
-    #             token_info = self.utils.get_token_info(token_mint)
-    #             if token_info: 
-    #                 response = requests.get('https://api.raydium.io/v2/main/price')
-    #                 response.raise_for_status()  # Check for HTTP errors
-    #                 price_list = response.json()
-    #                 # sol_curr_price = price_list[self.sol_address]
-    #                 curr_price_of_token = price_list.get(token_mint, None)
-                    
-    #                 if(curr_price_of_token == None):
-    #                     curr_price_of_token = token_info['price_usd']
-                    
-    #                 tmp_decimal = self.jupiterHelper.get_token_decimal_info(token_mint)
-    #                 # print("tmp_decimal>>>>>>>>>>>>>>>>>", tmp_decimal)
-
-    #                 if(tmp_decimal):
-    #                     token_amount = float(int(token_amount)/pow(10, int(tmp_decimal)))
-                    
-    #                 formatted_message.append(f"{orderType} :  <b>{str(token_info['symbol']).upper()} 📈 </b> - <b><a href='https://t.me/{constant.bot_name}?start=cancelOrder-{token_public_key}'>CANCEL</a></b> ")
-                    
-    #                 formatted_message.append(f"<code>{token_mint}</code>")
-    #                 formatted_message.append(f"● SOl: <b>{sol_amount:.6f}</b>")
-    #                 formatted_message.append(f"● Price(USD): <b>${token_info['price_usd']}</b>")
-    #                 formatted_message.append(f"● Trigger price: <b>{str(token_info['symbol']).upper()}  {  token_amount}</b>")
-    #                 formatted_message.append(f"● Expires: <b>{expiry_date}</b>\n\n")
-    #             # print('token_mint>>>>>>>>>>>>', token_mint)
-
-    #         if formatted_message:
-    #             message = "\n".join(formatted_message)
-            
-    #         await self.edit_message_text(text=message, chat_id = chat_id, message_id = msg.message_id, context = context, parseMode=ParseMode.HTML)
-
-    #     else:
-    #         await self.send_message(chat_id, f"You don\'t have any wallet to view Order List", context, message_id = msg.message_id)
-
 
 
 
