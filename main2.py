@@ -116,6 +116,7 @@ class Bot():
             if(cb_type == "sellToken"):
                 token_info = self.utils.get_token_info(token_to_sell)
                 if token_info:
+                    context.chat_data["limitOrderType"] = "sell"
                     await self.utils.sell_swap_menu(chat_id, token_info, token_to_sell, context, message_id=update.message.message_id, callBackType="sell_token")
                 else:
                     await self.send_message(chat_id, f"Token information not found for address: {token_to_sell}", context)
@@ -169,6 +170,7 @@ class Bot():
             await query.edit_message_text(text="Manage Your Wallet", reply_markup=submenu_reply_markup)
         elif callback_data == 'buy_token':
             context.chat_data["callbackType"] = callback_data
+            context.chat_data["limitOrderType"] = "buy"
             await query.edit_message_text(text="Enter token address to continue:")
         elif callback_data == 'sell_token':
             await self.sellTokenFunc(chat_id, context, callback_data)
@@ -294,23 +296,23 @@ class Bot():
             print('buy_expire_at',tmpCallBackType)
             await self.send_message(chat_id, f"Enter the expiry of your limit buy order. Valid options are s (seconds), m (minutes), h (hours), and d (days). E.g. 30m or 2h", context, None, tmpCallBackType, tmpPubkey, parseMode=ParseMode.HTML)
         elif callback_data == 'buy_create_order':
-            print('buy_create_order',tmpCallBackType)
             limitAmount = context.chat_data.get("limitAmount", '') or 0
             triggerAt = context.chat_data.get("triggerAt", '') or 0
             expireAt = context.chat_data.get("expireAt", '') or 0
-            await self.buyWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, limitAmount, triggerAt, expireAt)
-        elif callback_data == 'toggle_sell_swap_mode':
-            context.chat_data["callbackType"] = 'sell_token'
-            print('toggle_sell_swap_mode',tmpCallBackType)
-            markup = query.message.reply_markup
-            # updated_markup = self.getUpdatedBuyKeyboard(markup.inline_keyboard, context.chat_data, True)
-            # await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
-        elif callback_data == 'toggle_sell_limit_mode':
-            print('toggle_sell_swap_mode',tmpCallBackType)
-            context.chat_data["callbackType"] = 'sell_with_limit'
-            markup = query.message.reply_markup
-            # updated_markup = self.getUpdatedBuyKeyboard(markup.inline_keyboard, context.chat_data, False)
-            # await self.edit_message_text(text=query.message.text, chat_id = chat_id, message_id = message_id, context = context, parseMode=ParseMode.HTML, reply_keyboard=updated_markup)
+
+            if('limitOrderType' in context.chat_data and context.chat_data["limitOrderType"] == 'sell'):
+                await self.sellWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, limitAmount, triggerAt, expireAt)
+            else:
+                await self.buyWithLimit(chat_id, context, tmpPubkey, tmpCallBackType, limitAmount, triggerAt, expireAt)
+
+        # elif callback_data == 'toggle_sell_swap_mode':
+        #     context.chat_data["callbackType"] = 'sell_token'
+        #     print('toggle_sell_swap_mode',tmpCallBackType)
+        #     markup = query.message.reply_markup
+        # elif callback_data == 'toggle_sell_limit_mode':
+        #     print('toggle_sell_swap_mode',tmpCallBackType)
+        #     context.chat_data["callbackType"] = 'sell_with_limit'
+        #     markup = query.message.reply_markup
 
 
 
@@ -354,6 +356,7 @@ class Bot():
                     print('-address', token_address)
                     token_info = self.utils.get_token_info(token_address)
                     if token_info:
+                        context.chat_data["limitOrderType"] = "buy"
                         await self.utils.buy_swap_menu(chat_id, token_info, token_address, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = public_key)
                     else:
                         await self.send_message(chat_id, f"Token information not found for address: {token_address}", context)
@@ -542,8 +545,8 @@ class Bot():
                     if(triggerPercent):
                         triggerAt = float(curr_price_of_token) * (1 + float(triggerPercent) / 100) # getting trigger price from percent
                         
-                    print('curr_price_of_token-----------------',f"{curr_price_of_token:.8f}")
-                    print('triggerAt-----------------',f"{triggerAt:.8f}")
+                    # print('curr_price_of_token-----------------',f"{curr_price_of_token:.8f}")
+                    # print('triggerAt-----------------',f"{triggerAt:.8f}")
     
                     no_of_tokens = triggerAt / float(curr_price_of_token) # getting number of tokens can be bought from with given price (here:- triggerAt is price in usd)
                     out_amount = int(no_of_tokens * (10 ** output_token_decimal)) 
@@ -551,7 +554,7 @@ class Bot():
                     print('no_of_tokens-----------------',no_of_tokens)
                     print('out_amount-----------------',out_amount)
                     print ('input_mint, output_mint, in_amount, out_amount, sender',input_mint, output_mint, in_amount, out_amount)
-    
+                    
                     jup_txn_id = await tmpJupiterHel.create_order(input_mint, output_mint, in_amount, out_amount, sender, timestamp) # need to send slippage too
         
                     if not jup_txn_id:
