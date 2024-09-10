@@ -46,6 +46,7 @@ class Utils():
             ],
             [
                 {"text": "Transfer Token", "callback_data": "transfer_token"},
+                {"text": "Limit Orders", "callback_data": "limit_orders"},
             ],
             [
                 {"text": "Settings", "callback_data": "settings"},
@@ -88,58 +89,13 @@ class Utils():
             if menu_message_id:
                 await self.delete_message(chat_id, menu_message_id, context)
            
+            # limit_amt =  context.chat_data["limitAmount"]
+            # token_qty = (limit_amt * solPrice) / price of one cheryy in usd
+            # token_info_message += f"*${self.escape_dots(limit_amt)}* SOL ⇄ *${self.escape_dots(token_qty)}* {token_info['symbol']}\n"
             reply_keyboard = InlineKeyboardMarkup(self.getBuyLimitKeyboard(chat_data))
 
         await self.send_message(chat_id, token_info_message, context, reply_keyboard, callbackType = callBackType,userFilledPubkey = publicKey, message_id = message_id)
 
-
-
-
-
-    def getUpdatedBuyKeyboard(self, keyboard, chat_data, toggleSwap):
-        new_buttons = []
-        for row in keyboard:
-            new_row = []
-            for button in row:
-                if button.callback_data == 'toggle_swap_mode' or button.callback_data == 'toggle_limit_mode':                
-                    if button.callback_data == 'toggle_swap_mode':
-                        new_row.append(InlineKeyboardButton(
-                            text='Swap' + (' ✅' if toggleSwap else ''),
-                            callback_data='toggle_swap_mode'
-                        ))
-                    if button.callback_data == 'toggle_limit_mode':
-                        new_row.append(InlineKeyboardButton(
-                            text='Limit' + (' ✅' if not(toggleSwap) else ''),
-                            callback_data='toggle_limit_mode'
-                        ))
-                else:
-                    # Keep other buttons unchanged
-                    if not(button.callback_data == 'trigger_at' or button.callback_data == 'create_order' or button.callback_data == 'expire_btn'):
-                        new_row.append(button)
-            new_buttons.append(new_row)
-        
-        if not(toggleSwap):
-            tmp_trigger_at = ""
-            if "triggerAt" in chat_data:
-                tmp_trigger_at = chat_data["triggerAt"]
-            trigger_btn = [InlineKeyboardButton(
-                text='Trigger at:' + tmp_trigger_at,
-                callback_data='trigger_at'
-            )]
-            expire_btn = [InlineKeyboardButton(
-                text='Expiry:',
-                callback_data='expire_at'
-            )]
-            execute_btn = [InlineKeyboardButton(
-                text='CREATE ORDER',
-                callback_data='create_order'
-            )]
-            new_buttons.append(trigger_btn)
-            new_buttons.append(expire_btn)
-            new_buttons.append(execute_btn)
-
-        updated_markup = InlineKeyboardMarkup(new_buttons) 
-        return updated_markup
 
 
     async def getSubmenuKeyboard(self, chat_id):
@@ -185,6 +141,7 @@ class Utils():
 
         if "expireAt" in chat_data:
             tmp_expiry_date = ": " + chat_data["expireAt"]
+            
         buy_limit_keyboard = [
             [
                 {"text": "Swap", "callback_data": "toggle_buy_swap_mode"},

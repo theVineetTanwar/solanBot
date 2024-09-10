@@ -39,7 +39,6 @@ load_dotenv()
 
 dbURI = os.getenv("dbURI")
 TOKEN = os.getenv("TOKEN")
-# SHYFT_API_KEY = os.getenv("SHYFT_API_KEY")
 mongoClient = MongoClient(dbURI)
 db = mongoClient.telegram 
 wallet_collection = db.wallet 
@@ -177,6 +176,8 @@ class Bot():
         elif callback_data == 'transfer_token':
             context.chat_data["callbackType"] = callback_data
             await query.edit_message_text(text="Enter receiver\'s address to continue:")
+        elif callback_data == 'limit_orders':
+            await self.utils.listOrders(chat_id, context)
         elif callback_data == 'positions':
             await query.edit_message_text(text="You clicked positions")
         elif callback_data == 'list_token':
@@ -385,8 +386,8 @@ class Bot():
                 else:
                     print('---else',context)
                     await self.send_message(chat_id, f"Enter receiver\\'s public key", context)
+                                       
             # checks Percentage
-            
             elif re.match(r'(-?\d+(\.\d+)?)%', text):
                 if(not(tmpCallBackType == "buy_with_limit")):
                     await self.send_message(chat_id, f"You have not selected transaction type for the transaction" , context, None, tmpCallBackType, tmpPubkey)
@@ -411,6 +412,7 @@ class Bot():
                         await self.utils.buy_swap_menu(chat_id, token_info, tmp_pub_key, context, message_id=update.message.message_id, callBackType = tmpCallBackType, publicKey = tmp_pub_key, is_limit_order_menu = True, chat_data = context.chat_data) 
                     
                     return
+                
             # checks Expiry
             elif re.match(r"(\d+)([smhd])", text):
                 if(not(tmpCallBackType == "buy_with_limit")):
