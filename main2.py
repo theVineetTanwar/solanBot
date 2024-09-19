@@ -5,6 +5,8 @@ import sys
 print(sys.path)
 sys.path
 sys.executable
+sys.path.append('/usr/local/lib/python3.11/site-packages')
+
 from pydantic import BaseModel, Field, field_validator # v2 needed
 import requests
 import locale
