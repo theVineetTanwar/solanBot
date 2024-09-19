@@ -5,13 +5,15 @@ build:
   commands:
     build:
       - pip3 install -r requirements.txt
+    post-build:
+    - pip3 list
   env:
     - name: DEBUG
       value: "on"
 run:
   runtime-version: 3.11
   pre-run:
-    - echo "runnning. 3  .."
+    - echo "runnning. 4  .."
   # pre-run:
   #   - python3.11 main2.py
   command: python3 main2.py
