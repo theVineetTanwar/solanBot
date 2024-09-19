@@ -1,4 +1,3 @@
-
 version: 1.0
 runtime: python311
 build:
@@ -10,9 +9,9 @@ build:
       value: "on"
 run:
   runtime-version: 3.11
-  # pre-run:
-  #   - python3.11 main2.py
-  command: python3.11 main2.py
+  pre-run:
+    - echo "runnning..."
+  command: python main2.py
   network: 
     port: 8000
     env: 8000  
