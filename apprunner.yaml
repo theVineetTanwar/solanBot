@@ -12,6 +12,8 @@ run:
   pre-run:
     - echo "runnning..."
   command: python main2.py
+  post-build:
+    -echo "post -running>>>>>>>>>>>"
   network: 
     port: 8000
     env: 8000  
