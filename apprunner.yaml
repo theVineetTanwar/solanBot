@@ -14,7 +14,7 @@ run:
     - echo "runnning. 3  .."
   # pre-run:
   #   - python3.11 main2.py
-  command: python3.11 main2.py
+  command: python3 main2.py
   network: 
     port: 8080
     env: 8080  
