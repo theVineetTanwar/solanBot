@@ -3,6 +3,8 @@ import os
 import re
 import sys
 print(sys.path)
+sys.path
+sys.executable
 from pydantic import BaseModel, Field, field_validator # v2 needed
 import requests
 import locale
