@@ -1,6 +1,8 @@
 import asyncio
 import os
 import re
+import sys
+print(sys.path)
 from pydantic import BaseModel, Field, field_validator # v2 needed
 import requests
 import locale
