@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+from pydantic import BaseModel, Field, field_validator # v2 needed
 import requests
 import locale
 import time
@@ -20,7 +21,6 @@ from solders.hash import Hash
 from solana.transaction import Transaction
 from solders.system_program import TransferParams, transfer
 
-from pydantic import BaseModel, Field, field_validator # v2 needed
 from bson import ObjectId
 from typing import Optional, List
 from pymongo import MongoClient
